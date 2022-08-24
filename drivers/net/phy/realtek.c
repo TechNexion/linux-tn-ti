@@ -62,6 +62,7 @@
 /* page 0xa43, register 0x19 */
 #define RTL8211F_PHYCR2				0x19
 #define RTL8211F_CLKOUT_EN			BIT(0)
+#define RTL8211F_PHY_MODE_EEE_EN		BIT(5)
 
 #define RTL821X_CLKOUT_EN_FEATURE		(1 << 0)
 
@@ -99,6 +100,9 @@ static int rtl821x_probe(struct phy_device *phydev)
 
 	if (of_property_read_bool(dev->of_node, "rtl821x,clkout_en"))
 		priv->quirks |= RTL821X_CLKOUT_EN_FEATURE;
+
+	if (of_property_read_bool(dev->of_node, "rtl821x,phy-mode-eee-disable"))
+		priv->quirks |= RTL8211F_PHY_MODE_EEE_EN;
 
 	phydev->priv = priv;
 
@@ -289,6 +293,22 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 				       RTL8211F_CLKOUT_EN, 0);
 		if (ret < 0) {
 			dev_err(&phydev->mdio.dev, "clkout disable failed\n");
+			return ret;
+		}
+	}
+
+	if (priv->quirks & RTL8211F_PHY_MODE_EEE_EN) {
+		ret = phy_modify_paged(phydev, 0xa43, RTL8211F_PHYCR2,
+				       RTL8211F_PHY_MODE_EEE_EN, RTL8211F_PHY_MODE_EEE_EN);
+		if (ret < 0) {
+			dev_err(&phydev->mdio.dev, "PHY-mode EEE enable failed\n");
+			return ret;
+		}
+	} else {
+		ret = phy_modify_paged(phydev, 0xa43, RTL8211F_PHYCR2,
+				       RTL8211F_PHY_MODE_EEE_EN, 0);
+		if (ret < 0) {
+			dev_err(&phydev->mdio.dev, "PHY-mode EEE disable failed\n");
 			return ret;
 		}
 	}
