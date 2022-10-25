@@ -1,0 +1,236 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright 2022 TechNexion Ltd.
+ *
+ * Author: Ray Chang <ray.chang@technexion.com>
+ *
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/net/ti-dp83867.h>
+#include "k3-am625.dtsi"
+#include "k3-am625-axon.dtsi"
+
+/ {
+	compatible =  "ti,am625-axon-wb", "ti,am625";
+	model = "TechNexion AXON-AM62XX and WB baseboard";
+
+	pwr_5v: regulator-6 {
+		/* output of RT7298BHGQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	pwr_3v3: regulator-7 {
+		/* output of RT7298BHGQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&pwr_5v>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	pwr_1v8: regulator-8 {
+		/* output of RT8070ZQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&pwr_3v3>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	reg_usb_otg_vbus: usb_otg_vbus {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_usb0_pins_default>;
+		regulator-name = "USB_OTG_PWR_EN";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&main_gpio1 51 GPIO_ACTIVE_LOW>;
+		enable-active-low;
+	};
+
+	usb_hub_rst: usb_hub_rst {
+		compatible = "gpio-reset";
+		reset-gpios = <&ioexp3f 5 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <10>;
+		#reset-cells = <0>;
+	};
+
+	tlv320_mclk: clk-0 {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <12000000>;
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "tlv320aic3x-audio";
+		simple-audio-card,widgets =
+			"Headphone", "Headphone Jack",
+			"Microphone", "Mic Jack";
+		simple-audio-card,routing =
+			"Headphone Jack", "HPLOUT",
+			"Headphone Jack", "HPROUT",
+			"MIC3L", "Mic Jack",
+			"MIC3R", "Mic Jack",
+			"Mic Jack", "Mic Bias";
+		simple-audio-card,format = "dsp_b";
+		simple-audio-card,bitclock-master = <&sound_master>;
+		simple-audio-card,frame-master = <&sound_master>;
+		simple-audio-card,bitclock-inversion;
+
+		simple-audio-card,cpu {
+			sound-dai = <&mcasp0>;
+		};
+
+		sound_master: simple-audio-card,codec {
+			sound-dai = <&tlv320aic3106>;
+			clocks = <&tlv320_mclk>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-0 {
+			label = "gpio-led";
+			gpios = <&ioexp3b 1 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			function = LED_FUNCTION_HEARTBEAT;
+			default-state = "off";
+		};
+	};
+};
+
+/* I2C_B */
+&main_i2c1 {
+	clock-frequency = <400000>;
+
+	ioexp3b: pca9554@3b {
+		compatible = "nxp,pca9554";
+		reg = <0x3b>;
+		vcc-supply = <&pwr_3v3>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio0_ioexp3b_intr_pins_default>;
+		interrupt-parent = <&main_gpio0>;
+		interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-line-names = "M2_DISABLE_N", "LED_EN",
+				   "USB_OTG_OC", "EXT_GPIO8",
+				   "EXT_GPIO9", "CSI1_PDB",
+				   "AUD_A_SW", "PD_FAULT";
+	};
+
+	ioexp21: tca9555@21 {
+		compatible = "nxp,pca9555";
+		reg = <0x21>;
+		vcc-supply = <&pwr_1v8>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio0_ioexp21_intr_pins_default>;
+		interrupt-parent = <&main_gpio0>;
+		interrupts = <17 IRQ_TYPE_EDGE_FALLING>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-line-names = "EXPOSURE_TRIG_IN1", "FLASH_OUT1",
+				   "INFO_TRIG_IN1", "CAM_SHUTTER1",
+				   "XVS1", "PWR1_TIME0",
+				   "PWR1_TIME1", "PWR1_TIME2",
+				   "", "",
+				   "", "",
+				   "", "",
+				   "", "";
+	};
+
+	typec_hd3ss3220: hd3ss3220@67 {
+		compatible = "ti,hd3ss3220";
+		reg = <0x67>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio0_usb0_pins_default>;
+		interrupts-extended = <&main_gpio0 15 IRQ_TYPE_LEVEL_LOW>;
+		vbus-supply = <&reg_usb_otg_vbus>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				hd3ss3220_in_ep: endpoint {
+					remote-endpoint = <&usb0_out_ep>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				hd3ss3220_out_ep: endpoint {
+					remote-endpoint = <&usb0_in_ep>;
+				};
+			};
+		};
+	};
+
+	tlv320aic3106: audio-codec@1b {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tlv320aic3106";
+		reg = <0x1b>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_aud_rst_pins_default>;
+		reset-gpios = <&main_gpio1 16 GPIO_ACTIVE_LOW>; /* AUD_RST, SPI_A_SS1 */
+		ai3x-ocmv = <0>;
+		ai3x-micbias-vg = <1>;		/* 2.0V */
+
+		/* Regulators */
+		AVDD-supply = <&pwr_3v3>;
+		IOVDD-supply = <&pwr_3v3>;
+		DRVDD-supply = <&pwr_3v3>;
+		DVDD-supply = <&pwr_1v8>;
+	};
+};
+
+/* I2C_C */
+&main_i2c2 {
+	status = "okay";
+};
+
+&usb0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	usb-role-switch;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			usb0_out_ep: endpoint {
+				remote-endpoint = <&hd3ss3220_in_ep>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			usb0_in_ep: endpoint {
+				remote-endpoint = <&hd3ss3220_out_ep>;
+			};
+		};
+	};
+};
