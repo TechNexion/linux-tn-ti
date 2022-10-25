@@ -1,0 +1,279 @@
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
+/*
+ * Copyright (C) 2024 TechNexion Ltd.
+ *
+ * Author: Ray Chang <ray.chang@technexion.com>
+ *
+ */
+
+/dts-v1/;
+
+#include "k3-am625-axon.dtsi"
+
+/ {
+	compatible =  "ti,am625-axon-wb", "ti,am625";
+	model = "TechNexion AXON-AM62XX and WB baseboard";
+
+	pwr_5v: regulator-7 {
+		/* output of RT7298BHGQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	pwr_3v3: regulator-8 {
+		/* output of RT7298BHGQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&pwr_5v>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	pwr_1v8: regulator-9 {
+		/* output of RT8070ZQW */
+		compatible = "regulator-fixed";
+		regulator-name = "pwr_1v8";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		vin-supply = <&pwr_3v3>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	vdd_mmc1: regulator-3 {
+		/* Output of MIC94040 */
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_mmc1";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		enable-active-high;
+		regulator-always-on;
+		vin-supply = <&vcc_3v3_sys>;
+		gpio = <&ioexp22 6 GPIO_ACTIVE_HIGH>;
+	};
+
+	vdd_sd_dv: gpio-regulator {
+		compatible = "regulator-gpio";
+		pinctrl-names = "default";
+		pinctrl-0 = <&vdd_sd_dv_pins_default>;
+		regulator-name = "tps65219-LDO1-SEL-SD";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		vin-supply = <&ldo1_reg>;
+		gpios = <&main_gpio0 31 GPIO_ACTIVE_HIGH>;
+		states = <1800000 0x0>,
+			 <3300000 0x1>;
+	};
+
+	reg_usb_otg_vbus: usb_otg_vbus {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb0_pins_default>;
+		regulator-name = "USB_OTG_PWR_EN";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		gpio = <&main_gpio1 50 GPIO_ACTIVE_LOW>;
+		enable-active-low;
+	};
+
+	usb_hub_rst: usb_hub_rst {
+		compatible = "gpio-reset";
+		reset-gpios = <&ioexp22 5 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <10>;
+		#reset-cells = <0>;
+	};
+
+	tlv320_mclk: clk-0 {
+		#clock-cells = <0>;
+		compatible = "fixed-clock";
+		clock-frequency = <12000000>;
+	};
+
+	codec_audio: sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "tlv320aic3x-audio";
+		simple-audio-card,widgets =
+			"Headphone",	"Headphone Jack",
+			"Microphone",	"Microphone Jack";
+		simple-audio-card,routing =
+			"Headphone Jack",	"HPLOUT",
+			"Headphone Jack",	"HPROUT",
+			"MIC2R",		"Microphone Jack",
+			"Microphone Jack",	"Mic Bias";
+		simple-audio-card,format = "dsp_b";
+		simple-audio-card,bitclock-master = <&sound_master>;
+		simple-audio-card,frame-master = <&sound_master>;
+		simple-audio-card,bitclock-inversion;
+
+		simple-audio-card,cpu {
+			sound-dai = <&mcasp0>;
+		};
+
+		sound_master: simple-audio-card,codec {
+			sound-dai = <&tlv320aic3104>;
+			clocks = <&tlv320_mclk>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-0 {
+			label = "gpio-led";
+			gpios = <&ioexp3b 1 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			function = LED_FUNCTION_HEARTBEAT;
+			default-state = "off";
+		};
+	};
+};
+
+/* I2C_A */
+&main_i2c0 {
+	status = "okay";
+};
+
+/* I2C_B */
+&main_i2c2 {
+	clock-frequency = <400000>;
+
+	ioexp3b: pca9554@3b {
+		compatible = "nxp,pca9554";
+		reg = <0x3b>;
+		vcc-supply = <&pwr_3v3>;
+		interrupt-parent = <&ioexp22>;
+		interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-line-names = "M2_DISABLE_N", "LED_EN",
+				   "USB_OTG_OC", "EXT_GPIO8",
+				   "EXT_GPIO9", "CSI1_PDB",
+				   "AUD_A_SW", "PD_FAULT";
+	};
+
+	ioexp21: tca9555@21 {
+		compatible = "nxp,pca9555";
+		reg = <0x21>;
+		vcc-supply = <&pwr_1v8>;
+		interrupt-parent = <&ioexp22>;
+		interrupts = <19 IRQ_TYPE_EDGE_FALLING>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		gpio-line-names = "EXPOSURE_TRIG_IN1", "FLASH_OUT1",
+				   "INFO_TRIG_IN1", "CAM_SHUTTER1",
+				   "XVS1", "PWR1_TIME0",
+				   "PWR1_TIME1", "PWR1_TIME2",
+				   "", "",
+				   "", "",
+				   "", "",
+				   "", "";
+	};
+
+	typec_hd3ss3220: hd3ss3220@67 {
+		compatible = "ti,hd3ss3220";
+		reg = <0x67>;
+		interrupts-extended = <&ioexp22 17 IRQ_TYPE_LEVEL_LOW>;
+		vbus-supply = <&reg_usb_otg_vbus>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				hd3ss3220_in_ep: endpoint {
+					remote-endpoint = <&usb0_out_ep>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				hd3ss3220_out_ep: endpoint {
+					remote-endpoint = <&usb0_in_ep>;
+				};
+			};
+		};
+	};
+
+	tlv320aic3104: audio-codec@18 {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tlv320aic3104";
+		reg = <0x18>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&aud_rst_pins_default>;
+		reset-gpios = <&mcu_gpio0 12 GPIO_ACTIVE_LOW>; /* AUD_RST, GPIO_X2_P18 */
+		ai3x-ocmv = <0>;
+		ai3x-micbias-vg = <1>;	/* 2.0V */
+
+		/* Regulators */
+		AVDD-supply = <&pwr_3v3>;
+		IOVDD-supply = <&pwr_3v3>;
+		DRVDD-supply = <&pwr_3v3>;
+		DVDD-supply = <&pwr_1v8>;
+	};
+};
+
+/* I2C_C */
+&mcu_i2c0 {
+	status = "okay";
+};
+
+/* SD card on baseboard */
+&sdhci1 {
+	status = "okay";
+	vmmc-supply = <&vdd_mmc1>;
+	vqmmc-supply = <&vdd_sd_dv>;
+};
+
+&usb0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	usb-role-switch;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			usb0_out_ep: endpoint {
+				remote-endpoint = <&hd3ss3220_in_ep>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			usb0_in_ep: endpoint {
+				remote-endpoint = <&hd3ss3220_out_ep>;
+			};
+		};
+	};
+};
+
+#define K3_TS_OFFSET(pa, val)	(0x4+(pa)*4) (0x10000 | val)
+
+&timesync_router {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&cpsw_cpts>;
+
+	/* Use Time Sync Router to map GENF1 input to HW3_TS_PUSH output */
+	cpsw_cpts: cpsw-cpts {
+		pinctrl-single,pins = <
+			/* pps [cpsw cpts genf1] in17 -> out12 [cpsw cpts hw3_push] */
+			K3_TS_OFFSET(12, 17)
+			>;
+	};
+};
