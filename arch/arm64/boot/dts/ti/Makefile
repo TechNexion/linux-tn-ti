@@ -36,6 +36,10 @@ dtb-$(CONFIG_ARCH_K3) += k3-am62-lp-sk-microtips-mf101hie-panel.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-mcspi-loopback.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am62-lp-sk-nand.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb.dtb
+dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lcd-vl050-070-8048.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lcd-vl0808060.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lvds-vl10112880.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lvds-vl156192108.dtbo
 
 # Boards with AM62Ax SoC
 k3-am62a7-sk-ub954-evm-ov2312-dtbs := k3-am62a7-sk.dtb \
@@ -211,6 +215,14 @@ k3-am62-lp-sk-microtips-mf101hie-panel-dtbs := k3-am62-lp-sk.dtb \
 	k3-am62-lp-sk-microtips-mf101hie-panel.dtbo
 k3-am62-lp-sk-microtips-mf103hie-lcd2-dtbs := k3-am62-lp-sk.dtb \
 	k3-am62x-sk-microtips-mf103hie-lcd2.dtbo
+k3-am625-axon-wb-lcd-vl050-070-8048-dtbs := k3-am625-axon-wb.dtb \
+	k3-am625-axon-wb-lcd-vl050-070-8048.dtbo
+k3-am625-axon-wb-lcd-vl0808060-dtbs := k3-am625-axon-wb.dtb \
+	k3-am625-axon-wb-lcd-vl0808060.dtbo
+k3-am625-axon-wb-lvds-vl10112880-dtbs := k3-am625-axon-wb.dtb \
+	k3-am625-axon-wb-lvds-vl10112880.dtbo
+k3-am625-axon-wb-lvds-vl156192108-dtbs := k3-am625-axon-wb.dtb \
+	k3-am625-axon-wb-lvds-vl156192108.dtbo
 k3-am62a7-sk-csi2-imx219-dtbs := k3-am62a7-sk.dtb \
 	k3-am62x-sk-csi2-imx219.dtbo
 k3-am62a7-sk-csi2-ov5640-dtbs := k3-am62a7-sk.dtb \
@@ -322,6 +334,10 @@ dtb- += k3-am625-beagleplay-csi2-ov5640.dtb \
 	k3-am62-lp-sk-lincolntech-lcd185-panel.dtb \
 	k3-am62-lp-sk-microtips-mf101hie-panel.dtb \
 	k3-am62-lp-sk-microtips-mf103hie-lcd2.dtb \
+	k3-am625-axon-wb-lcd-vl050-070-8048.dtb \
+	k3-am625-axon-wb-lcd-vl0808060.dtb \
+	k3-am625-axon-wb-lvds-vl10112880.dtb \
+	k3-am625-axon-wb-lvds-vl156192108.dtb \
 	k3-am62a7-sk-csi2-imx219.dtb \
 	k3-am62a7-sk-csi2-ov5640.dtb \
 	k3-am62a7-sk-fastboot-disable-hdmi.dtb \
@@ -407,6 +423,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-v3link-imx219-0-0.dtbo \
 DTC_FLAGS_k3-am625-beagleplay += -@
 DTC_FLAGS_k3-am625-sk += -@
 DTC_FLAGS_k3-am62-lp-sk += -@
+DTC_FLAGS_k3-am625-axon-wb += -@
 DTC_FLAGS_k3-am62x-sk-csi2-v3link-fusion += -@
 DTC_FLAGS_k3-am62a7-sk-ub954-evm += -@
 DTC_FLAGS_k3-am62a7-sk += -@
