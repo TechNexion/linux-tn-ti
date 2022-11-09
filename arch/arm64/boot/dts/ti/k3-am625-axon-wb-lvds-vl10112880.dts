@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright 2022 TechNexion Ltd.
+ *
+ * Author: Ray Chang <ray.chang@technexion.com>
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@101 {
+		target-path = "/";
+
+		__overlay__ {
+			reg_lvds_pwr: regulator_lvdspwr {
+				compatible = "regulator-fixed";
+				pinctrl-names = "default";
+				pinctrl-0 = <&main_gpio0_lvds_pwr_pins_default>;
+				regulator-name = "LVDS_VLED_EN";
+				regulator-min-microvolt = <3300000>;
+				regulator-max-microvolt = <3300000>;
+				gpio = <&main_gpio0 33 GPIO_ACTIVE_HIGH>;
+				enable-active-high;
+			};
+
+			lvds_backlight: lvds_backlight {
+				compatible = "pwm-backlight";
+				pinctrl-names = "default";
+				pinctrl-0 = <&main_gpio0_lvds_backlight_pwr_pins_default>;
+				enable-gpios = <&main_gpio0 39 GPIO_ACTIVE_HIGH>;
+				power-supply = <&pwr_5v>;
+				pwms = <&epwm1 1 50000 0>;
+				brightness-levels = <7 255>;
+				num-interpolated-steps = <248>;
+				default-brightness-level = <100>;
+			};
+
+			lvds_panel {
+				compatible = "vxt,vl10112880", "panel-lvds";
+				backlight = <&lvds_backlight>;
+				power-supply = <&reg_lvds_pwr>;
+
+				data-mapping = "vesa-24";
+				height-mm = <135>;
+				width-mm = <216>;
+
+				panel-timing {
+					clock-frequency = <71100000>;
+					hactive = <1280>;
+					vactive = <800>;
+					hback-porch = <40>;
+					hfront-porch = <40>;
+					vback-porch = <10>;
+					vfront-porch = <3>;
+					hsync-len = <80>;
+					vsync-len = <10>;
+				};
+
+				port@0 {
+					panel_lvds_in0: endpoint {
+						remote-endpoint = <&oldi_out0>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&dss_ports {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* VP1: LVDS Output (OLDI TX 0) */
+	port@0 {
+		reg = <0>;
+		oldi_out0: endpoint {
+			remote-endpoint = <&panel_lvds_in0>;
+		};
+	};
+};

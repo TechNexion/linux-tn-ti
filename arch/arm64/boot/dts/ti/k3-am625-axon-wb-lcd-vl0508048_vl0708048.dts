@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 Texas Instruments Incorporated - https://www.ti.com/
+ * Copyright 2022 TechNexion Ltd.
+ *
+ * Author: Ray Chang <ray.chang@technexion.com>
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	fragment@101 {
+		target-path = "/";
+
+		__overlay__ {
+			lcd_backlight: lcd_backlight {
+				compatible = "pwm-backlight";
+				enable-gpios = <&ioexp3f 4 GPIO_ACTIVE_HIGH>;
+				power-supply = <&pwr_5v>;
+				pwms = <&epwm1 0 50000 0>;
+				brightness-levels = <7 255>;
+				num-interpolated-steps = <248>;
+				default-brightness-level = <100>;
+			};
+
+			lcd_panel {
+				compatible = "innolux,at070tn92";
+				backlight = <&lcd_backlight>;
+				power-supply = <&pwr_5v>;
+
+				port {
+					panel_lcd_in: endpoint {
+						remote-endpoint = <&dpi1_out>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&dss_ports {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	/* VP2: DPI Output */
+	port@1 {
+		reg = <1>;
+
+		dpi1_out: endpoint {
+			remote-endpoint = <&panel_lcd_in>;
+		};
+	};
+};
+
+/* I2C_C */
+&main_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	polytouch: edt-ft5x06@38 {
+		compatible = "edt,edt-ft5x06";
+		reg = <0x38>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_touch_intr_pins_default &mcu_gpio0_touch_nrst_pins_default>;
+		reset-gpios = <&mcu_gpio0 1 GPIO_ACTIVE_LOW>; /* TOUCH_nRST, SPI_B_CS1 */
+		interrupt-parent = <&main_gpio1>; /* TOUCH_nINT, GPIO_X2_P24 */
+		interrupts = <25 0>;
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
+};
