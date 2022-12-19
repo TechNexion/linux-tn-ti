@@ -216,6 +216,15 @@
 		>;
 	};
 
+	mcu_spi0_pins_default: mcu-spi0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_MCU_IOPAD(0x0008, PIN_OUTPUT, 0) /* (A7) MCU_SPI0_CLK */
+			AM62X_MCU_IOPAD(0x0000, PIN_OUTPUT, 0) /* (E8) MCU_SPI0_CS0 */
+			AM62X_MCU_IOPAD(0x000c, PIN_OUTPUT, 0) /* (D9) MCU_SPI0_D0 */
+			AM62X_MCU_IOPAD(0x0010, PIN_INPUT, 0) /* (C9) MCU_SPI0_D1 */
+		>;
+	};
+
 	mcu_i2c0_pins_default: mcu-i2c0-pins-default {
 		pinctrl-single,pins = <
 			AM62X_MCU_IOPAD(0x0044, PIN_INPUT, 0) /* (A8) MCU_I2C0_SCL */
@@ -258,6 +267,15 @@
 		pinctrl-single,pins = <
 			AM62X_IOPAD(0x0b0, PIN_INPUT, 1) /* (K22) GPMC0_CSn2.I2C2_SCL */
 			AM62X_IOPAD(0x0b4, PIN_INPUT, 1) /* (K24) GPMC0_CSn3.I2C2_SDA */
+		>;
+	};
+
+	main_spi0_pins_default: main-spi0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x01bc, PIN_OUTPUT, 0) /* (A14) SPI0_CLK */
+			AM62X_IOPAD(0x01b4, PIN_OUTPUT, 0) /* (A13) SPI0_CS0 */
+			AM62X_IOPAD(0x01c0, PIN_OUTPUT, 0) /* (B13) SPI0_D0 */
+			AM62X_IOPAD(0x01c4, PIN_INPUT, 0) /* (B14) SPI0_D1 */
 		>;
 	};
 
@@ -724,6 +742,36 @@
 
 &main_i2c3 {
 	status = "disabled";
+};
+
+/* SPI_B on AXON */
+&mcu_spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcu_spi0_pins_default>;
+	#address-cells = <1>;
+	#size-cells= <0>;
+	ti,pindir-d0-out-d1-in = <1>;
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <24000000>;
+		reg = <0>;
+	};
+};
+
+/* SPI_A on AXON */
+&main_spi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_spi0_pins_default>;
+	#address-cells = <1>;
+	#size-cells= <0>;
+	ti,pindir-d0-out-d1-in = <1>;
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <24000000>;
+		reg = <0>;
+	};
 };
 
 /* eMMC on SOM */
