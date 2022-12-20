@@ -562,6 +562,15 @@
 			AM62X_IOPAD(0x01d8, PIN_OUTPUT, 7) /* (C15) MCAN0_TX.GPIO1_24 */
 		>;
 	};
+
+	main_gpio0_pins_default: main-gpio0-pins-default {
+		pinctrl-single,pins = <
+			AM62X_IOPAD(0x0048, PIN_INPUT, 7) /* (N25) GPMC0_AD3.GPIO0_18 */
+			AM62X_IOPAD(0x004c, PIN_INPUT, 7) /* (P24) GPMC0_AD4.GPIO0_19 */
+			AM62X_IOPAD(0x0050, PIN_INPUT, 7) /* (P22) GPMC0_AD5.GPIO0_20 */
+			AM62X_IOPAD(0x0054, PIN_INPUT, 7) /* (P21) GPMC0_AD6.GPIO0_21 */
+		>;
+	};
 };
 
 /* UART_B on AXON */
