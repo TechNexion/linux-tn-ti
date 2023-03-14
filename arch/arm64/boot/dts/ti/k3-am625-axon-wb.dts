@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2021-2022 Texas Instruments Incorporated - https://www.ti.com/
- * Copyright 2022 TechNexion Ltd.
+ * Copyright 2023 TechNexion Ltd.
  *
  * Author: Ray Chang <ray.chang@technexion.com>
  *
@@ -19,7 +19,7 @@
 	compatible =  "ti,am625-axon-wb", "ti,am625";
 	model = "TechNexion AXON-AM62XX and WB baseboard";
 
-	pwr_5v: regulator-6 {
+	pwr_5v: regulator-7 {
 		/* output of RT7298BHGQW */
 		compatible = "regulator-fixed";
 		regulator-name = "pwr_5v";
@@ -29,7 +29,7 @@
 		regulator-boot-on;
 	};
 
-	pwr_3v3: regulator-7 {
+	pwr_3v3: regulator-8 {
 		/* output of RT7298BHGQW */
 		compatible = "regulator-fixed";
 		regulator-name = "pwr_3v3";
@@ -40,7 +40,7 @@
 		regulator-boot-on;
 	};
 
-	pwr_1v8: regulator-8 {
+	pwr_1v8: regulator-9 {
 		/* output of RT8070ZQW */
 		compatible = "regulator-fixed";
 		regulator-name = "pwr_1v8";
@@ -53,18 +53,16 @@
 
 	reg_usb_otg_vbus: usb_otg_vbus {
 		compatible = "regulator-fixed";
-		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio1_usb0_pins_default>;
 		regulator-name = "USB_OTG_PWR_EN";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		gpio = <&main_gpio1 51 GPIO_ACTIVE_LOW>;
+		gpio = <&ioexp22 22 GPIO_ACTIVE_LOW>;
 		enable-active-low;
 	};
 
 	usb_hub_rst: usb_hub_rst {
 		compatible = "gpio-reset";
-		reset-gpios = <&ioexp3f 5 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&ioexp22 5 GPIO_ACTIVE_LOW>;
 		reset-delay-us = <10>;
 		#reset-cells = <0>;
 	};
@@ -84,8 +82,7 @@
 		simple-audio-card,routing =
 			"Headphone Jack", "HPLOUT",
 			"Headphone Jack", "HPROUT",
-			"MIC3L", "Mic Jack",
-			"MIC3R", "Mic Jack",
+			"MIC2R", "Mic Jack",
 			"Mic Jack", "Mic Bias";
 		simple-audio-card,format = "dsp_b";
 		simple-audio-card,bitclock-master = <&sound_master>;
@@ -97,7 +94,7 @@
 		};
 
 		sound_master: simple-audio-card,codec {
-			sound-dai = <&tlv320aic3106>;
+			sound-dai = <&tlv320aic3104>;
 			clocks = <&tlv320_mclk>;
 		};
 	};
@@ -115,29 +112,20 @@
 	};
 };
 
-&main_gpio0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&main_gpio0_pins_default>;
-	gpio-line-names =	\
-		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",	\
-		"", "", "GPIO_X1_P74", "GPIO_X1_P76", "GPIO_X1_P78", "GPIO_X1_P80", "", "", "", "", "", "", "", "", "", "",	\
-		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",	\
-		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",	\
-		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",	\
-		"", "", "", "", "", "", "";
+/* I2C_A */
+&main_i2c0 {
+	status = "okay";
 };
 
 /* I2C_B */
-&main_i2c1 {
+&main_i2c2 {
 	clock-frequency = <400000>;
 
 	ioexp3b: pca9554@3b {
 		compatible = "nxp,pca9554";
 		reg = <0x3b>;
 		vcc-supply = <&pwr_3v3>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio0_ioexp3b_intr_pins_default>;
-		interrupt-parent = <&main_gpio0>;
+		interrupt-parent = <&ioexp22>;
 		interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
 		gpio-controller;
 		#gpio-cells = <2>;
@@ -153,10 +141,8 @@
 		compatible = "nxp,pca9555";
 		reg = <0x21>;
 		vcc-supply = <&pwr_1v8>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio0_ioexp21_intr_pins_default>;
-		interrupt-parent = <&main_gpio0>;
-		interrupts = <17 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent = <&ioexp22>;
+		interrupts = <19 IRQ_TYPE_EDGE_FALLING>;
 		gpio-controller;
 		#gpio-cells = <2>;
 		interrupt-controller;
@@ -174,9 +160,7 @@
 	typec_hd3ss3220: hd3ss3220@67 {
 		compatible = "ti,hd3ss3220";
 		reg = <0x67>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio0_usb0_pins_default>;
-		interrupts-extended = <&main_gpio0 15 IRQ_TYPE_LEVEL_LOW>;
+		interrupts-extended = <&ioexp22 17 IRQ_TYPE_LEVEL_LOW>;
 		vbus-supply = <&reg_usb_otg_vbus>;
 
 		ports {
@@ -199,13 +183,13 @@
 		};
 	};
 
-	tlv320aic3106: audio-codec@1b {
+	tlv320aic3104: audio-codec@18 {
 		#sound-dai-cells = <0>;
-		compatible = "ti,tlv320aic3106";
-		reg = <0x1b>;
+		compatible = "ti,tlv320aic3104";
+		reg = <0x18>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&main_gpio1_aud_rst_pins_default>;
-		reset-gpios = <&main_gpio1 16 GPIO_ACTIVE_LOW>; /* AUD_RST, SPI_A_SS1 */
+		pinctrl-0 = <&mcu_gpio0_aud_rst_pins_default>;
+		reset-gpios = <&mcu_gpio0 12 GPIO_ACTIVE_LOW>; /* AUD_RST, GPIO_X2_P18 */
 		ai3x-ocmv = <0>;
 		ai3x-micbias-vg = <1>;		/* 2.0V */
 
@@ -218,7 +202,7 @@
 };
 
 /* I2C_C */
-&main_i2c2 {
+&mcu_i2c0 {
 	status = "okay";
 };
 
