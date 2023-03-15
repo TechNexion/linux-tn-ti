@@ -195,7 +195,7 @@ static int hd3ss3220_probe(struct i2c_client *client,
 			if (IS_ERR(hd3ss3220->vbus_reg))
 				dev_err(&client->dev, "vbus init failed\n");
 			else
-				dev_info(&client->dev, "vbus found.\n");
+				dev_dbg(&client->dev, "vbus found.\n");
 		}
 		else
 			dev_info(&client->dev, "No vbus found.(Normal if USB2.0 or lower.)\n");
