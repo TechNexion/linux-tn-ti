@@ -403,7 +403,7 @@ static int ops_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 	fd->entry[fd->num_entries].flags = V4L2_MBUS_FRAME_DESC_FL_LEN_MAX;
 	fd->entry[fd->num_entries].length = fmt->width * fmt->height * bpp / 8;
 	fd->entry[fd->num_entries].pixelcode = fmt->code;
-	fd->entry[fd->num_entries].bus.csi2.vc = 1;
+	fd->entry[fd->num_entries].bus.csi2.vc = 0;
 	fd->entry[fd->num_entries].bus.csi2.dt = 0x1e; /* SRGB */
 
 	fd->num_entries++;
