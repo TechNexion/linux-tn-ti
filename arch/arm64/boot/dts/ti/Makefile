@@ -78,6 +78,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lvds-vl10112880.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lvds-vl156192108.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lcd-vl0508048_vl0708048.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-lcd-vl0808060.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-axon-wb-tevi-ov5640.dtbo
 
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk.dtb
