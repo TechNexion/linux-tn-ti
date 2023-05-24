@@ -2236,6 +2236,30 @@ static const struct panel_desc innolux_at070tn92 = {
 	.connector_type = DRM_MODE_CONNECTOR_DPI,
 };
 
+static const struct drm_display_mode innolux_ej080na_05b_mode = {
+	.clock = 40000,
+	.hdisplay = 800,
+	.hsync_start = 800 + 210,
+	.hsync_end = 800 + 210 + 46,
+	.htotal = 800 + 210 + 46 + 20,
+	.vdisplay = 600,
+	.vsync_start = 600 + 12,
+	.vsync_end = 600 + 12 + 23,
+	.vtotal = 600 + 12 + 23 + 10,
+};
+
+static const struct panel_desc innolux_ej080na_05b = {
+	.modes = &innolux_ej080na_05b_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 162,
+		.height = 112,
+	},
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH | DRM_BUS_FLAG_PIXDATA_SAMPLE_NEGEDGE,
+	.connector_type = DRM_MODE_CONNECTOR_DPI,
+};
+
 static const struct display_timing innolux_g070ace_l01_timing = {
 	.pixelclock = { 25200000, 35000000, 35700000 },
 	.hactive = { 800, 800, 800 },
@@ -4412,6 +4436,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "innolux,at070tn92",
 		.data = &innolux_at070tn92,
+	}, {
+		.compatible = "innolux,ej080na-05b",
+		.data = &innolux_ej080na_05b,
 	}, {
 		.compatible = "innolux,g070ace-l01",
 		.data = &innolux_g070ace_l01,
