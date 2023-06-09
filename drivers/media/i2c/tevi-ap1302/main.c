@@ -191,7 +191,7 @@ static int sensor_i2c_write_bust(struct i2c_client *client, u8 *buf, size_t len)
 		dev_err(&client->dev, "i2c transfer retry:%d.\n", retry_tmp);
 		dev_dbg(&client->dev, "write bust buf:%x.\n", client->addr);
 
-		if (retry_tmp > 50)
+		if (retry_tmp > 10)
 		{
 			dev_err(&client->dev, "i2c transfer error.\n");
 			return -EIO;
@@ -282,8 +282,8 @@ static int ops_set_stream(struct v4l2_subdev *sub_dev, int enable)
 	} else {
 		ret = sensor_standby(instance->i2c_client, 0);
 		if (ret == 0) {
-			dev_dbg(sub_dev->dev, "%s() width=%d, height=%d\n", __func__, 
-				ap1302_sensor_table[instance->selected_sensor].res_list[instance->selected_mode].width, 
+			dev_dbg(sub_dev->dev, "%s() width=%d, height=%d\n", __func__,
+				ap1302_sensor_table[instance->selected_sensor].res_list[instance->selected_mode].width,
 				ap1302_sensor_table[instance->selected_sensor].res_list[instance->selected_mode].height);
 			sensor_i2c_write_16b(instance->i2c_client, 0x1184, 1); //ATOMIC
 			//VIDEO_WIDTH
@@ -781,10 +781,14 @@ static int sensor_standby(struct i2c_client *client, int enable)
 static int sensor_power_on(struct sensor *instance)
 {
 	dev_dbg(&instance->i2c_client->dev, "%s()\n", __func__);
-	gpiod_set_value_cansleep(instance->host_power_gpio, 1);
-	gpiod_set_value_cansleep(instance->device_power_gpio, 1);
+	if ( !IS_ERR(instance->host_power_gpio) && !IS_ERR(instance->device_power_gpio) ) {
+		gpiod_set_value_cansleep(instance->host_power_gpio, 1);
+		gpiod_set_value_cansleep(instance->device_power_gpio, 1);
+	}
 	usleep_range(500, 5000);
-	gpiod_set_value_cansleep(instance->reset_gpio, 1);
+	if ( !IS_ERR(instance->reset_gpio) ) {
+		gpiod_set_value_cansleep(instance->reset_gpio, 1);
+	}
 	msleep(10);
 
 	return 0;
@@ -793,11 +797,15 @@ static int sensor_power_on(struct sensor *instance)
 static int sensor_power_off(struct sensor *instance)
 {
 	dev_dbg(&instance->i2c_client->dev, "%s()\n", __func__);
-	gpiod_set_value_cansleep(instance->standby_gpio, 0);
-	gpiod_set_value_cansleep(instance->reset_gpio, 0);
+	if ( !IS_ERR(instance->standby_gpio) && !IS_ERR(instance->reset_gpio) ) {
+		gpiod_set_value_cansleep(instance->standby_gpio, 0);
+		gpiod_set_value_cansleep(instance->reset_gpio, 0);
+	}
 	usleep_range(50, 500);
-	gpiod_set_value_cansleep(instance->device_power_gpio, 0);
-	gpiod_set_value_cansleep(instance->host_power_gpio, 0);
+	if ( !IS_ERR(instance->host_power_gpio) && !IS_ERR(instance->device_power_gpio) ) {
+		gpiod_set_value_cansleep(instance->device_power_gpio, 0);
+		gpiod_set_value_cansleep(instance->host_power_gpio, 0);
+	}
 	msleep(10);
 
 	return 0;
@@ -824,7 +832,7 @@ static int sensor_try_on(struct sensor *instance)
 
 static int sensor_load_bootdata(struct sensor *instance)
 {
-#ifndef __FAKE__
+#ifdef __FAKE__
 	struct device *dev = &instance->i2c_client->dev;
 	int index = 0;
 	size_t len = 0;
@@ -996,29 +1004,33 @@ static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *i
 	}
 	instance->i2c_client = client;
 
-	instance->host_power_gpio = devm_gpiod_get(dev, "host-power",
-							GPIOD_OUT_LOW);
-	instance->device_power_gpio = devm_gpiod_get(dev, "device-power",
-							GPIOD_OUT_LOW);
-	instance->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
-	instance->standby_gpio = devm_gpiod_get(dev, "standby", GPIOD_OUT_LOW);
-
-
-	if (IS_ERR(instance->reset_gpio))
-		dev_dbg(dev, "get reset_gpio failed\n");
-	if (IS_ERR(instance->host_power_gpio))
-		dev_dbg(dev, "get host_power_gpio failed\n");
-	if (IS_ERR(instance->device_power_gpio))
-		dev_dbg(dev, "get device_power_gpio failed\n");
-	if (IS_ERR(instance->standby_gpio))
-		dev_dbg(dev, "get standby_gpio failed\n");
-
-	if (IS_ERR(instance->reset_gpio) ||
-		IS_ERR(instance->host_power_gpio) ||
-		IS_ERR(instance->device_power_gpio) ||
-		IS_ERR(instance->standby_gpio) ) {
-		dev_err(dev, "get gpio object failed\n");
-		return -EPROBE_DEFER;
+	instance->host_power_gpio = devm_gpiod_get_optional(dev, "host-power", GPIOD_OUT_LOW);
+	if (IS_ERR(instance->host_power_gpio)) {
+		ret = PTR_ERR(instance->host_power_gpio);
+		if (ret != -EINVAL)
+			dev_err(dev, "Cannot get host-power GPIO (%d)", ret);
+		return ret;
+	}
+	instance->device_power_gpio = devm_gpiod_get_optional(dev, "device-power", GPIOD_OUT_LOW);
+	if (IS_ERR(instance->device_power_gpio)) {
+		ret = PTR_ERR(instance->device_power_gpio);
+		if (ret != -EINVAL)
+			dev_err(dev, "Cannot get device-power GPIO (%d)", ret);
+		return ret;
+	}
+	instance->reset_gpio = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
+	if (IS_ERR(instance->reset_gpio)) {
+		ret = PTR_ERR(instance->reset_gpio);
+		if (ret != -EINVAL)
+			dev_err(dev, "Cannot get reset GPIO (%d)", ret);
+		return ret;
+	}
+	instance->standby_gpio = devm_gpiod_get_optional(dev, "standby", GPIOD_OUT_LOW);
+	if (IS_ERR(instance->standby_gpio)) {
+		ret = PTR_ERR(instance->standby_gpio);
+		if (ret != -EINVAL)
+			dev_err(dev, "Cannot get standby GPIO (%d)", ret);
+		return ret;
 	}
 
 	pixel_rate = 0;
@@ -1062,7 +1074,7 @@ static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *i
 		retry_f &= ~0x01;
 
 		if (sensor_try_on(instance) != 0) {
-			retry_f |= 0x02 ;
+			// retry_f |= 0x02 ;
 		}
 
 		instance->otp_flash_instance = ap1302_otp_flash_init(dev);
@@ -1098,6 +1110,8 @@ static int sensor_probe(struct i2c_client *client, const struct i2c_device_id *i
 				return  -EINVAL;
 			}
 		}
+		else
+			retry_f = 0x00;
 	}
 
 	fmt = &instance->fmt;
