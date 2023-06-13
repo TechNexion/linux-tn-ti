@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2021-2022 Texas Instruments Incorporated - https://www.ti.com/
+ *
+ * Copyright 2023 TechNexion Ltd.
+ *
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/k3.h>
+
+/* I2C_B */
+&main_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	tevi_ap1302_otp_0: tevi_ap1302_otp_0@54 {
+		compatible = "atmel,24c64";
+		reg = <0x54>;
+		pagesize = <128>;
+	};
+
+	ap1302_0: ap1302_0@3d {
+		compatible = "tn,tevi-ap1302";
+		reg = <0x3d>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_csi_ctrl_pins_default>;
+
+		reset-gpios = <&main_gpio1 24 GPIO_ACTIVE_HIGH>; /* CSI_nRST, GPIO_X3_P65 */
+		device-power-gpios = <&ioexp21 0 GPIO_ACTIVE_HIGH>;
+		standby-gpios = <&ioexp21 2 GPIO_ACTIVE_HIGH>;
+
+		nvmem = <&tevi_ap1302_otp_0>;
+		nvmem-names = "calib-data";
+		pixel-rate = <61440000>; /* 61.43MHz */
+		data-lanes = <2>;
+		continuous-clock = <0>;
+		status = "okay";
+
+		port {
+			csi2_cam0: endpoint {
+				remote-endpoint = <&csi2rx0_in_sensor>;
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&csi0_port0 {
+	status = "okay";
+
+	csi2rx0_in_sensor: endpoint {
+		remote-endpoint = <&csi2_cam0>;
+		bus-type = <4>; /* CSI2 DPHY. */
+		clock-lanes = <0>;
+		data-lanes = <1 2 3 4>;
+	};
+};
