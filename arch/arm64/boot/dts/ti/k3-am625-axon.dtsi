@@ -198,6 +198,11 @@
 		gpio = <&main_gpio0 71 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
+
+	emmc_pwrseq: pwrseq@0 {
+		compatible = "mmc-pwrseq-emmc";
+		reset-gpios = <&ioexp22 7 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &mcu_pmx0 {
@@ -784,9 +789,9 @@
 &sdhci0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_mmc0_pins_default>;
-	reset-gpios = <&ioexp22 7 GPIO_ACTIVE_LOW>;
+	mmc-pwrseq = <&emmc_pwrseq>;
 	ti,driver-strength-ohm = <50>;
-	/delete-property/ ti,itap-del-sel-mmc-hs;
+	non-removable;
 	disable-wp;
 };
 
