@@ -175,6 +175,7 @@
 		off-on-delay = <20000>;
 		startup-delay-us = <100>;
 		enable-active-high;
+		regulator-boot-on;
 	};
 
 	bt_reg_on: regulator-5 {
