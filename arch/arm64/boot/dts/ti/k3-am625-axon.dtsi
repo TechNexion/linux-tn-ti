@@ -48,6 +48,14 @@
 		#size-cells = <2>;
 		ranges;
 
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x14000000>;
+			alloc-ranges = <0 0x80000000 0 0x40000000>;
+			linux,cma-default;
+		};
+
 		rtos_ipc_memory_region: ipc-memories@9c800000 {
 			compatible = "shared-dma-pool";
 			reg = <0x00 0x9c800000 0x00 0x00300000>;
