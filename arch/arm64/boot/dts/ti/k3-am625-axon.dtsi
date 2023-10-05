@@ -146,6 +146,7 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
 		enable-active-high;
+		regulator-always-on;
 		vin-supply = <&vcc_3v3_sys>;
 		gpio = <&ioexp22 6 GPIO_ACTIVE_HIGH>;
 	};
