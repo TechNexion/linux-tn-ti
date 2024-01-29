@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: GPL-2.0
+/**
+ * DT Overlay for Technexion TEVS series camera interfaced with CSI2 on J721E-EAIK board.
+ *
+ * Copyright (C) 2023 Technexion Ltd.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pinctrl/k3.h>
+
+/* I2C_B */
+&main_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	tevs_0: tevs@48 {
+		compatible = "tn,tevs";
+		reg = <0x48>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_csi_ctrl_pins_default>;
+
+		reset-gpios = <&main_gpio1 24 GPIO_ACTIVE_HIGH>; /* CSI_nRST, GPIO_X3_P65 */
+		standby-gpios = <&ioexp21 2 GPIO_ACTIVE_HIGH>;
+
+		data-lanes = <2>;
+		data-frequency = <800>;
+		pixel-rate = <41430400>;  //61430400
+		continuous-clock = <0>;
+		status = "okay";
+
+		port {
+			csi2_cam0: endpoint {
+				remote-endpoint = <&csi2rx0_in_sensor>;
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&csi0_port0 {
+	status = "okay";
+
+	csi2rx0_in_sensor: endpoint {
+		remote-endpoint = <&csi2_cam0>;
+		bus-type = <4>; /* CSI2 DPHY. */
+		clock-lanes = <0>;
+		data-lanes = <1 2 3 4>;
+	};
+};
+
