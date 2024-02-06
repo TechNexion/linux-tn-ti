@@ -53,10 +53,12 @@
 
 	reg_usb_otg_vbus: usb_otg_vbus {
 		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_gpio1_usb0_pins_default>;
 		regulator-name = "USB_OTG_PWR_EN";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		gpio = <&ioexp22 22 GPIO_ACTIVE_LOW>;
+		gpio = <&main_gpio1 50 GPIO_ACTIVE_LOW>;
 		enable-active-low;
 	};
 

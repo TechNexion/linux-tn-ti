@@ -542,9 +542,9 @@
 		>;
 	};
 
-	main_usb1_pins_default: main-usb1-pins-default {
+	main_gpio1_usb0_pins_default: main-usb1-pins-default {
 		pinctrl-single,pins = <
-			AM62X_IOPAD(0x0258, PIN_OUTPUT, 0) /* (F18) USB1_DRVVBUS */
+			AM62X_IOPAD(0x0254, PIN_OUTPUT, 7) /* (C20) USB0_DRVVBUS.GPIO1_50 */
 		>;
 	};
 
@@ -836,8 +836,6 @@
 
 &usb1 {
 	dr_mode = "host";
-	pinctrl-names = "default";
-	pinctrl-0 = <&main_usb1_pins_default>;
 };
 
 &cpsw3g {
