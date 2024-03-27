@@ -268,6 +268,7 @@ enum tevs_pads{
 #define TEVS_BSL_MODE_FLASH_IDX 			(1U << 0)
 
 #define DEFAULT_HEADER_VERSION 3
+#define TEVS_BOOT_TIME						(250)
 
 struct header_info {
 	u8 header_version;
@@ -488,6 +489,7 @@ static int tevs_standby(struct tevs *tevs, int enable)
 	if (enable == 1) {
 		tevs_i2c_write_16b(tevs, HOST_COMMAND_ISP_CTRL_SYSTEM_START,
 				     0x0000);
+		usleep_range(9000, 20000);
 		while (timeout < 100) {
 			tevs_i2c_read_16b(
 				tevs, HOST_COMMAND_ISP_CTRL_SYSTEM_START, &v);
@@ -504,6 +506,7 @@ static int tevs_standby(struct tevs *tevs, int enable)
 	} else {
 		tevs_i2c_write_16b(tevs, HOST_COMMAND_ISP_CTRL_SYSTEM_START,
 				     0x0001);
+		usleep_range(9000, 20000);
 		while (timeout < 100) {
 			tevs_i2c_read_16b(
 				tevs, HOST_COMMAND_ISP_CTRL_SYSTEM_START, &v);
@@ -538,7 +541,7 @@ static int tevs_check_boot_state(struct tevs *tevs)
 			dev_err(tevs->dev, "tevs bootup timeout: state: 0x%02X\n", boot_state);
 			ret = -EINVAL;
 		}
-		msleep(20);
+		msleep(TEVS_BOOT_TIME);
 	}
 
 	return ret;
@@ -550,7 +553,7 @@ static int tevs_power_on(struct tevs *tevs)
 	dev_dbg(tevs->dev, "%s()\n", __func__);
 
 	gpiod_set_value_cansleep(tevs->reset_gpio, 1);
-	msleep(100);
+	msleep(TEVS_BOOT_TIME);
 
 	ret = tevs_check_boot_state(tevs);
 	if(ret != 0)
@@ -2377,10 +2380,10 @@ static int tevs_probe(struct i2c_client *client)
 		}
 	}
 
-	tevs->data_frequency = 800;
+	tevs->data_frequency = 0;
 	if (of_property_read_u32(tevs->dev->of_node, "data-frequency",
 				 &tevs->data_frequency) == 0) {
-		if ((tevs->data_frequency < 100) || (tevs->data_frequency > 1200)) {
+		if ((tevs->data_frequency != 0) && ((tevs->data_frequency < 100) || (tevs->data_frequency > 1200))) {
 			dev_err(dev,
 				"value of 'data-frequency = <%d>' property is invaild\n", tevs->data_frequency);
 			return -EINVAL;
@@ -2398,9 +2401,9 @@ static int tevs_probe(struct i2c_client *client)
 
 	dev_dbg(dev,
 		"data-lanes [%d] ,continuous-clock [%d], supports-over-4k-res [%d]," 
-		" hw-reset [%d], trigger-mode [%d]\n",
+		" hw-reset [%d], trigger-mode [%d], data-frequency [%d]\n",
 		tevs->data_lanes, tevs->continuous_clock, tevs->supports_over_4k_res, 
-		tevs->hw_reset_mode, tevs->trigger_mode);
+		tevs->hw_reset_mode, tevs->trigger_mode, tevs->data_frequency);
 
 	if (tevs_try_on(tevs) != 0) {
 		dev_err(dev, "cannot find tevs camera\n");
@@ -2410,7 +2413,7 @@ static int tevs_probe(struct i2c_client *client)
 	ret = tevs_i2c_write_16b(tevs,
 				HOST_COMMAND_ISP_CTRL_MIPI_FREQ,
 				tevs->data_frequency);
-	msleep(100);
+	msleep(TEVS_BOOT_TIME);
 	if (tevs_check_boot_state(tevs) != 0) {
 		dev_err(dev, "check tevs bootup status failed\n");
 		return -EINVAL;
