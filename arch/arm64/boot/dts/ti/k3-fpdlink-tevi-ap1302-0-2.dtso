@@ -31,7 +31,7 @@
 
 	link@2 {
 		reg = <2>;
-		i2c-alias = <0x46>;
+		i2c-alias = <0x45>;
 
 		ti,rx-mode = <3>;
 

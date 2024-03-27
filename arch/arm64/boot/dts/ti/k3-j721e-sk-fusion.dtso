@@ -10,12 +10,33 @@
 /plugin/;
 
 #include <dt-bindings/gpio/gpio.h>
+#include "k3-pinctrl.h"
 
 &{/} {
 	clk_fusion_25M_fixed: fixed-clock-25M {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
 		clock-frequency = <25000000>;
+	};
+};
+&main_pmx0 {
+	main_csi_mux_sel2_pins_default: main-csi-mux-sel2-pins-default {
+		pinctrl-single,pins = <
+			J721E_IOPAD(0x164, PIN_OUTPUT, 7) /* (V29) RGMII5_TD2 */
+		>;
+	};
+};
+
+&main_gpio0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_csi_mux_sel2_pins_default>;
+
+	csi-mux-hog {
+		/* CSI_MUX_SEL_2 */
+		gpio-hog;
+		gpios = <88 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "CSI_MUX_SEL_2";
 	};
 };
 
@@ -41,7 +62,7 @@
 				reg = <0x3d>;
 				clocks = <&clk_fusion_25M_fixed>;
 				clock-names = "refclk";
-				i2c-alias-pool = <0x4a 0x4b 0x4c 0x4d 0x4e 0x4f>;
+				i2c-alias-pool = <0x4a 0x4b 0x4c 0x4d 0x4e 0x4f 0x5a 0x5b>;
 
 				ds90ub960_0_ports: ports {
 					#address-cells = <1>;
@@ -52,7 +73,7 @@
 						reg = <4>;
 						ds90ub960_0_csi_out: endpoint {
 							clock-lanes = <0>;
-							data-lanes = <1 2 3 4>;
+							data-lanes = <1 2>;
 							link-frequencies = /bits/ 64 <800000000>;
 							remote-endpoint = <&csi2_phy0>;
 						};
@@ -70,7 +91,7 @@
 				reg = <0x36>;
 				clocks = <&clk_fusion_25M_fixed>;
 				clock-names = "refclk";
-				i2c-alias-pool = <0x5a 0x5b 0x5c 0x5d 0x5e 0x5f>;
+				i2c-alias-pool = <0x4a 0x4b 0x4c 0x4d 0x4e 0x4f 0x5a 0x5b>;
 
 				ds90ub960_1_ports: ports {
 					#address-cells = <1>;
@@ -81,7 +102,7 @@
 						reg = <4>;
 						ds90ub960_1_csi_out: endpoint {
 							clock-lanes = <0>;
-							data-lanes = <1 2 3 4>;
+							data-lanes = <1 2>;
 							link-frequencies = /bits/ 64 <800000000>;
 							remote-endpoint = <&csi2_phy1>;
 						};
@@ -103,7 +124,7 @@
 	csi2_phy0: endpoint {
 		remote-endpoint = <&ds90ub960_0_csi_out>;
 		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
+		data-lanes = <1 2>;
 		link-frequencies = /bits/ 64 <800000000>;
 	};
 };
@@ -114,7 +135,7 @@
 	csi2_phy1: endpoint {
 		remote-endpoint = <&ds90ub960_1_csi_out>;
 		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
+		data-lanes = <1 2>;
 		link-frequencies = /bits/ 64 <800000000>;
 	};
 };
