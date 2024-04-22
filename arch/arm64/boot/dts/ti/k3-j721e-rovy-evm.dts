@@ -529,6 +529,29 @@
 	};
 };
 
+&wkup_gpio0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <
+		&mcu_eeprom_som_wp_pins_default
+		&mcu_eeprom_baseboard_wp_pins_default
+	>;
+	gpio-line-names =
+		/* 0..9 */
+		"", "", "", "", "", "", "", "", "", "",
+		/* 10..19 */
+		"", "", "", "", "", "", "", "", "", "",
+		/* 20..29 */
+		"", "", "", "", "", "", "", "", "","",
+		/* 30..39 */
+		"", "", "EEPROM_BASEBOARD-wp", "", "", "", "", "", "","",
+		/* 40..49 */
+		"", "", "", "", "", "", "", "", "","",
+		/* 50..59 */
+		"", "", "", "", "", "", "", "", "","",
+		/* 60..69 */
+		"", "", "", "", "", "", "EEPROM_SOM-wp", "", "","";
+};
+
 &main_ehrpwm3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&main_ehrpwm3a_pins_default>;
@@ -745,8 +768,6 @@
 &wkup_i2c0 {
 	eeprom_baseboard: eeprom@51 {
 		compatible = "atmel,24c512";
-		pinctrl-names = "default";
-		pinctrl-0 = <&mcu_eeprom_baseboard_wp_pins_default>;
 		//wp-gpios = <&wkup_gpio0 32 GPIO_ACTIVE_HIGH>;
 		reg = <0x51>;
 		pagesize = <128>;

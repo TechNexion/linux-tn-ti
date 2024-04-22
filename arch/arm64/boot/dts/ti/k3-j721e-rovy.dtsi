@@ -688,8 +688,6 @@
 
 	eeprom_som: eeprom@50 {
 		compatible = "atmel,24c512";
-		pinctrl-names = "default";
-		pinctrl-0 = <&mcu_eeprom_som_wp_pins_default>;
 		//wp-gpios = <&wkup_gpio0 66 GPIO_ACTIVE_HIGH>;
 		reg = <0x50>;
 		pagesize = <128>;
