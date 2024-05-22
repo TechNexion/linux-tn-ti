@@ -59,7 +59,7 @@
 	fpdlink_dsi2lvds: ds90ub948@0c {
 		compatible = "ti,ds90ub94x";
 		reg = <0x0c>;
-		status = "okay";
+		status = "disabled";
 		//reset-gpios = <&pca9554_dsi0_23 4 GPIO_ACTIVE_LOW>;
 	};
 
