@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * LI OV5640 MIPI Camera module.
+ *
+ * Copyright (C) 2021 Texas Instruments Incorporated - http://www.ti.com/
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "k3-pinctrl.h"
+
+/ {
+	fragment@101 {
+		target-path = "/";
+
+		__overlay__ {
+			clk_ov5640_fixed: ov5640-xclk {
+				compatible = "fixed-clock";
+				#clock-cells = <0>;
+				clock-frequency = <24000000>;
+			};
+		};
+	};
+};
+
+&main_pmx0 {
+
+	main_rovy_cam0_pins_default: main-rovy-cam0-pins-default {
+		pinctrl-single,pins = <
+			J721E_IOPAD(0x108, PIN_OUTPUT, 7) /* (AD27) PRG0_PRU1_GPO2.GPIO0_65 */
+			J721E_IOPAD(0x10c, PIN_OUTPUT, 7) /* (AC25) PRG0_PRU1_GPO3.GPIO0_66 */
+		>;
+	};
+
+	main_rovy_cam1_pins_default: main-rovy-cam1-pins-default {
+		pinctrl-single,pins = <
+			J721E_IOPAD(0x124, PIN_OUTPUT, 7) /* (Y24) PRG0_PRU1_GPO9.GPIO0_72 */
+			J721E_IOPAD(0x128, PIN_OUTPUT, 7) /* (AA25) PRG0_PRU1_GPO10.GPIO0_73 */
+		>;
+	};
+};
+
+&main_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	pca9554_0: pca9554_0@25 {
+		compatible = "nxp,pca9554";
+		reg = <0x25>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		status = "okay";
+	};
+
+	ov5640_0: camera@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_rovy_cam0_pins_default>;
+
+		reset-gpios = <&main_gpio0 65 GPIO_ACTIVE_LOW>;	//CSI0_RST_N_GPIO0_65
+		powerdown-gpios = <&pca9554_0 2 GPIO_ACTIVE_HIGH>;
+
+		clocks = <&clk_ov5640_fixed>;
+		clock-names = "xclk";
+
+		port {
+			csi2_cam0: endpoint {
+				remote-endpoint = <&csi2rx0_in_sensor>;
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&main_i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	pca9554_1: pca9554_0@25 {
+		compatible = "nxp,pca9554";
+		reg = <0x25>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		status = "okay";
+	};
+
+	ov5640_1: camera@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&main_rovy_cam1_pins_default>;
+
+		reset-gpios = <&main_gpio0 72 GPIO_ACTIVE_LOW>;	//GPIO0_72
+		powerdown-gpios = <&pca9554_1 2 GPIO_ACTIVE_HIGH>;
+
+		clocks = <&clk_ov5640_fixed>;
+		clock-names = "xclk";
+
+		port {
+			csi2_cam1: endpoint {
+				remote-endpoint = <&csi2rx1_in_sensor>;
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&csi0_port0 {
+	status = "okay";
+	csi2rx0_in_sensor: endpoint {
+		remote-endpoint = <&csi2_cam0>;
+		bus-type = <4>; /* CSI2 DPHY. */
+		clock-lanes = <0>;
+		data-lanes = <1 2>;
+	};
+};
+
+&csi1_port0 {
+	status = "okay";
+	csi2rx1_in_sensor: endpoint {
+		remote-endpoint = <&csi2_cam1>;
+		bus-type = <4>; /* CSI2 DPHY. */
+		clock-lanes = <0>;
+		data-lanes = <1 2>;
+	};
+};
