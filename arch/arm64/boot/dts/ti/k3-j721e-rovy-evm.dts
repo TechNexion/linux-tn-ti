@@ -1070,3 +1070,7 @@
 &csi1_port4 {
 	status = "disabled";
 };
+
+&mhdp { /* Unused */
+	status = "disabled";
+};
