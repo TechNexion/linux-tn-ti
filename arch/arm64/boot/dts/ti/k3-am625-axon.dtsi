@@ -729,8 +729,16 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		gpio-line-names = "VPP_LDO_EN", "GPIO_ENET1_RST", "GPIO_ENET2_RST", "SE_RST", "DISP_BKLEN", "GPIO_X2_P22", "MMC1_SD_EN", "GPIO_eMMC_RSTn",
-				   "", "", "", "", "", "", "GPIO_X3_P69", "GPIO_X3_P71",
-				   "GPIO_X1_P66", "GPIO_X1_P68", "GPIO_X1_P70", "GPIO_X1_P72", "GPIO_X1_P74", "GPIO_X1_P76", "GPIO_X1_P78", "GPIO_X1_P80";
+				   "", "", "", "ENET2_INTn", "ENET1_INTn", "EEPROM_SOM-wp", "GPIO_X3_P69", "GPIO_X3_P71",
+				   "GPIO_X1_P66", "GPIO_X1_P68", "GPIO_X1_P70", "GPIO_X1_P72", "GPIO_X1_P74", "GPIO_X1_P76", "SDIOREON", "GPIO_X1_P80";
+	};
+
+	eeprom_som: eeprom@53 {
+		compatible = "atmel,24c02";
+		//wp-gpios = <&ioexp22 13 GPIO_ACTIVE_HIGH>;
+		reg = <0x53>;
+		pagesize = <8>;
+		status = "okay";
 	};
 };
 
