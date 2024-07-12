@@ -997,7 +997,7 @@
 	phys = <&transceiver_can_g>;
 };
 
-&main_mcan8 { /* SOC_CAN_H */
+&main_mcan9 { /* SOC_CAN_H */
 	status = "okay";
 	phys = <&transceiver_can_h>;
 };
