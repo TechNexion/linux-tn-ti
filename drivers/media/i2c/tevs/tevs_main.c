@@ -169,7 +169,7 @@ enum tevs_pads{
 #define HOST_COMMAND_ISP_CTRL_I2C_ADDR                          (0xF000)
 #define HOST_COMMAND_ISP_CTRL_I2C_DATA                          (0xF002)
 
-#define TEVS_TRIGGER_CTRL                   	(0x1186)
+#define TEVS_TRIGGER_CTRL                   	HOST_COMMAND_ISP_CTRL_TRIGGER_MODE
 
 #define TEVS_BRIGHTNESS 						HOST_COMMAND_ISP_CTRL_BRIGHTNESS
 #define TEVS_BRIGHTNESS_MAX 					HOST_COMMAND_ISP_CTRL_BRIGHTNESS_MAX
@@ -224,8 +224,10 @@ enum tevs_pads{
 #define TEVS_FLICK_CTRL_FREQ_MASK			    (0xFF00)
 #define TEVS_FLICK_CTRL_MODE_50HZ             	(TEVS_FLICK_CTRL_FREQ(50) | TEVS_FLICK_CTRL_MODE_MANUAL)
 #define TEVS_FLICK_CTRL_MODE_60HZ             	(TEVS_FLICK_CTRL_FREQ(60) | TEVS_FLICK_CTRL_MODE_MANUAL)
-#define TEVS_FLICK_MODE_DISABLED_IDX			(0U << 0)
-#define TEVS_FLICK_MODE_ENABLED_IDX				(3U << 0)
+#define TEVS_FLICK_CTRL_MODE_DISABLED_IDX		(0U << 0)
+#define TEVS_FLICK_CTRL_MODE_50HZ_IDX			(1U << 0)
+#define TEVS_FLICK_CTRL_MODE_60HZ_IDX			(2U << 0)
+#define TEVS_FLICK_CTRL_MODE_AUTO_IDX			(3U << 0)
 #define TEVS_AWB_MANUAL_TEMP 					HOST_COMMAND_ISP_CTRL_AWB_TEMP
 #define TEVS_AWB_MANUAL_TEMP_MAX 				HOST_COMMAND_ISP_CTRL_AWB_TEMP_MAX
 #define TEVS_AWB_MANUAL_TEMP_MIN 				HOST_COMMAND_ISP_CTRL_AWB_TEMP_MIN
@@ -257,9 +259,11 @@ enum tevs_pads{
 #define TEVS_AE_CTRL_MODE 						HOST_COMMAND_ISP_CTRL_AE_MODE
 #define TEVS_AE_CTRL_MODE_MASK 					(0x00FF)
 #define TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN 		(0U << 0)
+#define TEVS_AE_CTRL_AUTO_GAIN 					(9U << 0)
 #define TEVS_AE_CTRL_FULL_AUTO 					(12U << 0)
 #define TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN_IDX 	(0U << 0)
 #define TEVS_AE_CTRL_FULL_AUTO_IDX 				(1U << 0)
+#define TEVS_AE_CTRL_AUTO_GAIN_IDX				(2U << 0)
 #define TEVS_DZ_CT_X 							HOST_COMMAND_ISP_CTRL_CT_X
 #define TEVS_DZ_CT_X_MASK 						(0xFFFF)
 #define TEVS_DZ_CT_Y 							HOST_COMMAND_ISP_CTRL_CT_Y
@@ -270,8 +274,6 @@ enum tevs_pads{
 #define V4L2_CID_USER_TEVS_BASE				(V4L2_CID_USER_BASE + 0x2000)
 #define V4L2_CID_TEVS_BSL_MODE				(V4L2_CID_USER_TEVS_BASE + 0)
 #define V4L2_CID_TEVS_MAX_FPS				(V4L2_CID_USER_TEVS_BASE + 1)
-#define V4L2_CID_TEVS_AE_EXP_TIME_UPPER		(V4L2_CID_USER_TEVS_BASE + 2)
-#define V4L2_CID_TEVS_AE_EXP_TIME_MAX		(V4L2_CID_USER_TEVS_BASE + 3)
 #define TEVS_TRIGGER_CTRL_MODE_MASK 		(0x0001)
 #define TEVS_BSL_MODE_NORMAL_IDX 		    (0U << 0)
 #define TEVS_BSL_MODE_FLASH_IDX 			(1U << 0)
@@ -321,13 +323,13 @@ struct tevs {
 	bool supports_over_4k_res;
 	bool hw_reset_mode;
 	bool trigger_mode;
-	bool fixed_fps;
 	char *sensor_name;
 
 	struct mutex lock; /* Protects formats */
 	/* V4L2 Controls */
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *max_fps_ctrl;
+	struct v4l2_ctrl *exp_time_ctrl;
 };
 
 static const struct regmap_config tevs_regmap_config = {
@@ -404,15 +406,28 @@ int tevs_i2c_write_16b(struct tevs *tevs, u16 reg, u16 val)
 
 int tevs_enable_trigger_mode(struct tevs *tevs, int enable)
 {
-	u8 trigger_data[4];
+	int ret = 0;
+	int count = 0;
+	u16 val, trigger_data;
+
 	dev_dbg(tevs->dev, "%s(): enable:%d\n", __func__, enable);
 
-	trigger_data[0] = TEVS_TRIGGER_CTRL >> 8;
-	trigger_data[1] = TEVS_TRIGGER_CTRL & 0xff;
-	trigger_data[2] = 0x3;
-	trigger_data[3] = (enable > 0) ? 0x82 : 0x80;
+	trigger_data = (0x300 | ( (enable > 0) ? 0x82 : 0x80));
 
-	return tevs_i2c_write(tevs, HOST_COMMAND_ISP_CTRL_I2C_ADDR, trigger_data, sizeof(trigger_data));
+	if((ret = tevs_i2c_write_16b(tevs, TEVS_TRIGGER_CTRL, trigger_data)) < 0)
+		return ret;
+
+	do {
+		if((ret = tevs_i2c_read_16b(tevs, TEVS_TRIGGER_CTRL, &val)) < 0)
+				return ret;
+		if((val & 0x300) == 0)
+			break;
+
+	} while(count++ < 10);
+
+	usleep_range(90000, 100000);
+
+	return ret;
 }
 
 int tevs_check_version(struct tevs *tevs)
@@ -475,12 +490,12 @@ int tevs_init_setting(struct tevs *tevs)
 {
 	int ret = 0;
 
-	if(tevs->trigger_mode) {
-		ret = tevs_enable_trigger_mode(tevs, 1);
-		if (ret != 0) {
-			dev_err(tevs->dev, "set trigger mode failed\n");
-			return ret;
-		}
+	dev_dbg(tevs->dev, "%s()\n", __func__);
+
+	ret = tevs_enable_trigger_mode(tevs, tevs->trigger_mode);
+	if (ret != 0) {
+		dev_err(tevs->dev, "set trigger mode failed\n");
+		return ret;
 	}
 
 	ret += tevs_i2c_write_16b(tevs,
@@ -597,7 +612,7 @@ static int tevs_get_frame_interval(struct v4l2_subdev *sub_dev,
 	struct tevs *tevs =
 		container_of(sub_dev, struct tevs, v4l2_subdev);
 	int max_fps;
-	dev_dbg(sub_dev->dev, "%s()\n", __func__);
+	// dev_dbg(sub_dev->dev, "%s()\n", __func__);
 
 	if (fi->pad != 0)
 		return -EINVAL;
@@ -618,7 +633,7 @@ static int tevs_set_frame_interval(struct v4l2_subdev *sub_dev,
 	struct tevs *tevs =
 		container_of(sub_dev, struct tevs, v4l2_subdev);
 	u32 max_fps;
-	dev_dbg(sub_dev->dev, "%s()\n", __func__);
+	// dev_dbg(sub_dev->dev, "%s()\n", __func__);
 
 	if (fi->pad != 0)
 		return -EINVAL;
@@ -637,7 +652,6 @@ static int tevs_set_stream(struct v4l2_subdev *sub_dev, int enable)
 {
 	struct tevs *tevs =
 		container_of(sub_dev, struct tevs, v4l2_subdev);
-	int exp_time;
 	int ret = 0;
 
 	dev_dbg(sub_dev->dev, "%s() enable [%x]\n", __func__, enable);
@@ -694,23 +708,6 @@ static int tevs_set_stream(struct v4l2_subdev *sub_dev, int enable)
 
 			if(tevs->max_fps_ctrl)
 				tevs->max_fps_ctrl->cur.val = fps;
-
-			if(tevs->fixed_fps) {
-				exp_time = TOTAL_MICROSEC_PERSEC / fps;
-				dev_dbg(sub_dev->dev, "%s():set fixed exp time: %d us(fps:%d)\n", __func__, exp_time, fps);
-				tevs_i2c_write_16b(
-							tevs, HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_UPPER_MSB,
-							(exp_time >> 16));
-				tevs_i2c_write_16b(
-							tevs, HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_UPPER_LSB,
-							exp_time & 0xFFFF);
-				tevs_i2c_write_16b(
-							tevs, HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_MAX_MSB,
-							(exp_time >> 16));
-				tevs_i2c_write_16b(
-							tevs, HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_MAX_LSB,
-							exp_time & 0xFFFF);
-			}
 		}
 	}
 
@@ -734,7 +731,7 @@ static int _tevs_set_routing(struct v4l2_subdev *sub_dev,
 {
 	int ret;
 
-	dev_dbg(sub_dev->dev, "%s()\n", __func__);
+	// dev_dbg(sub_dev->dev, "%s()\n", __func__);
 
 	if (routing->num_routes > V4L2_FRAME_DESC_ENTRY_MAX)
 		return -EINVAL;
@@ -763,7 +760,7 @@ static int tevs_init_cfg(struct v4l2_subdev *sub_dev,
 		.routes = routes,
 	};
 
-	dev_dbg(sub_dev->dev, "%s()\n", __func__);
+	// dev_dbg(sub_dev->dev, "%s()\n", __func__);
 
 	return _tevs_set_routing(sub_dev, state, &routing);
 }
@@ -857,18 +854,18 @@ static int tevs_get_fmt(struct v4l2_subdev *sub_dev,
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
 	{
-		dev_dbg(sub_dev->dev, "%s():subdev format try\n", __func__);
+		// dev_dbg(sub_dev->dev, "%s():subdev format try\n", __func__);
 		fmt = v4l2_subdev_get_try_format(sub_dev,
 						 sd_state,
 						 format->pad);
 	}
 	else
 	{
-		dev_dbg(sub_dev->dev, "%s():subdev format not try\n", __func__);
+		// dev_dbg(sub_dev->dev, "%s():subdev format not try\n", __func__);
 		fmt = &tevs->fmt;
 	}
 
-	dev_dbg(sub_dev->dev, "%s():memmove\n", __func__);
+	// dev_dbg(sub_dev->dev, "%s():memmove\n", __func__);
 
 	format->format = *fmt;
 
@@ -908,8 +905,8 @@ static int tevs_set_fmt(struct v4l2_subdev *sub_dev,
 		return -EINVAL;
 	}
 	tevs->selected_mode = i;
-	dev_dbg(sub_dev->dev, "%s() selected mode index [%d]\n", __func__,
-		tevs->selected_mode);
+	// dev_dbg(sub_dev->dev, "%s() selected mode index [%d]\n", __func__,
+		// tevs->selected_mode);
 
 	mbus_fmt->width =
 		tevs_sensor_table[tevs->selected_sensor].res_list[i].width;
@@ -1149,10 +1146,10 @@ static int tevs_set_awb_mode(struct tevs *tevs, s32 mode)
 	u16 val = mode & TEVS_AWB_CTRL_MODE_MASK;
 
 	switch (val) {
-	case 0:
+	case TEVS_AWB_CTRL_MODE_MANUAL_TEMP_IDX:
 		val = TEVS_AWB_CTRL_MODE_MANUAL_TEMP;
 		break;
-	case 1:
+	case TEVS_AWB_CTRL_MODE_AUTO_IDX:
 		val = TEVS_AWB_CTRL_MODE_AUTO;
 		break;
 	default:
@@ -1176,13 +1173,13 @@ static int tevs_get_awb_mode(struct tevs *tevs, s32 *mode)
 
 	switch (val & TEVS_AWB_CTRL_MODE_MASK) {
 	case TEVS_AWB_CTRL_MODE_MANUAL_TEMP:
-		*mode = 0;
+		*mode = TEVS_AWB_CTRL_MODE_MANUAL_TEMP_IDX;
 		break;
 	case TEVS_AWB_CTRL_MODE_AUTO:
-		*mode = 1;
+		*mode = TEVS_AWB_CTRL_MODE_AUTO_IDX;
 		break;
 	default:
-		*mode = 1;
+		*mode = TEVS_AWB_CTRL_MODE_AUTO_IDX;
 		break;
 	}
 
@@ -1229,88 +1226,6 @@ static int tevs_get_gamma_min(struct tevs *tevs, s64 *value)
 		return ret;
 
 	*value = val & TEVS_GAMMA_MASK;
-	return 0;
-}
-
-static int tevs_set_max_fps(struct tevs *tevs, s32 value)
-{
-	return tevs_i2c_write_16b(tevs, TEVS_MAX_FPS,
-				    value & TEVS_MAX_FPS_MASK);
-}
-
-static int tevs_get_max_fps(struct tevs *tevs, s32 *value)
-{
-	u16 val;
-	int ret;
-	ret = tevs_i2c_read_16b(tevs, TEVS_MAX_FPS, &val);
-	if (ret)
-		return ret;
-
-	*value = val & TEVS_MAX_FPS_MASK;
-	return 0;
-}
-
-static int tevs_set_ae_auto_exp_upper(struct tevs *tevs, s32 value)
-{
-	u8 val[4];
-	__be32 temp;
-	int ret;
-
-	temp = cpu_to_be32(value);
-	memcpy(val, &temp, 4);
-
-	ret = tevs_i2c_write(tevs,
-				   TEVS_AE_AUTO_EXP_TIME_UPPER,
-				   val, 4);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-static int tevs_get_ae_auto_exp_upper(struct tevs *tevs, s32 *value)
-{
-	u8 val[4] = { 0 };
-	int ret;
-
-	ret = tevs_i2c_read(tevs,
-				  TEVS_AE_AUTO_EXP_TIME_UPPER, val, 4);
-	if (ret)
-		return ret;
-
-	*value = be32_to_cpup((__be32*)val);
-	return 0;
-}
-
-static int tevs_set_ae_auto_exp_max(struct tevs *tevs, s32 value)
-{
-	u8 val[4];
-	__be32 temp;
-	int ret;
-
-	temp = cpu_to_be32(value);
-	memcpy(val, &temp, 4);
-
-	ret = tevs_i2c_write(tevs,
-				   TEVS_AE_AUTO_EXP_TIME_MAX,
-				   val, 4);
-	if (ret)
-		return ret;
-
-	return 0;
-}
-
-static int tevs_get_ae_auto_exp_max(struct tevs *tevs, s32 *value)
-{
-	u8 val[4] = { 0 };
-	int ret;
-
-	ret = tevs_i2c_read(tevs,
-				  TEVS_AE_AUTO_EXP_TIME_MAX, val, 4);
-	if (ret)
-		return ret;
-
-	*value = be32_to_cpup((__be32*)val);
 	return 0;
 }
 
@@ -1493,16 +1408,16 @@ static int tevs_set_flick_mode(struct tevs *tevs, s32 mode)
 	u16 val = 0;
 	switch(mode)
 	{
-	case 0:
+	case TEVS_FLICK_CTRL_MODE_DISABLED_IDX:
 		val = TEVS_FLICK_CTRL_MODE_DISABLED;
 		break;
-	case 1:
+	case TEVS_FLICK_CTRL_MODE_50HZ_IDX:
 		val = TEVS_FLICK_CTRL_MODE_50HZ;
 		break;
-	case 2:
+	case TEVS_FLICK_CTRL_MODE_60HZ_IDX:
 		val = TEVS_FLICK_CTRL_MODE_60HZ;
 		break;
-	case 3:
+	case TEVS_FLICK_CTRL_MODE_AUTO_IDX:
 		val = TEVS_FLICK_CTRL_MODE_AUTO |
 				TEVS_FLICK_CTRL_FRC_OVERRIDE_UPPER_ET |
 				TEVS_FLICK_CTRL_FRC_EN;
@@ -1527,19 +1442,19 @@ static int tevs_get_flick_mode(struct tevs *tevs, s32 *mode)
 	switch (val & TEVS_FLICK_CTRL_MODE_MASK)
 	{
 	case TEVS_FLICK_CTRL_MODE_DISABLED:
-		*mode = 0;
+		*mode = TEVS_FLICK_CTRL_MODE_DISABLED_IDX;
 		break;
 	case TEVS_FLICK_CTRL_MODE_MANUAL:
 		if((val & TEVS_FLICK_CTRL_FREQ_MASK) == TEVS_FLICK_CTRL_FREQ(50))
-			*mode = 1;
+			*mode = TEVS_FLICK_CTRL_MODE_50HZ_IDX;
 		else if((val & TEVS_FLICK_CTRL_FREQ_MASK)  == TEVS_FLICK_CTRL_FREQ(50))
-			*mode = 2;
+			*mode = TEVS_FLICK_CTRL_MODE_60HZ_IDX;
 		break;
 	case TEVS_FLICK_CTRL_MODE_AUTO:
-		*mode = 3;
+		*mode = TEVS_FLICK_CTRL_MODE_AUTO_IDX;
 		break;
 	default:
-		*mode = 0;
+		*mode = TEVS_FLICK_CTRL_MODE_DISABLED_IDX;
 		break;
 	}
 	return 0;
@@ -1685,26 +1600,6 @@ static int tevs_get_backlight_compensation_min(struct tevs *tevs,
 	return 0;
 }
 
-static int tevs_set_zoom_target(struct tevs *tevs, s32 value)
-{
-	// Format u7.8
-	return tevs_i2c_write_16b(tevs, TEVS_DZ_TGT_FCT,
-				    value & TEVS_DZ_TGT_FCT_MASK);
-}
-
-static int tevs_get_zoom_target(struct tevs *tevs, s32 *value)
-{
-	u16 val;
-	int ret;
-	ret = tevs_i2c_read_16b(tevs, TEVS_DZ_TGT_FCT,
-				  &val);
-	if (ret)
-		return ret;
-
-	*value = val & TEVS_DZ_TGT_FCT_MASK;
-	return 0;
-}
-
 static int tevs_get_zoom_target_max(struct tevs *tevs, s64 *value)
 {
 	u16 val;
@@ -1754,19 +1649,19 @@ static int tevs_set_special_effect(struct tevs *tevs, s32 mode)
 	u16 val = mode & TEVS_SFX_MODE_SFX_MASK;
 
 	switch (val) {
-	case 0:
+	case TEVS_SFX_MODE_SFX_NORMAL_IDX:
 		val = TEVS_SFX_MODE_SFX_NORMAL;
 		break;
-	case 1:
+	case TEVS_SFX_MODE_SFX_BW_IDX:
 		val = TEVS_SFX_MODE_SFX_BW;
 		break;
-	case 2:
+	case TEVS_SFX_MODE_SFX_GRAYSCALE_IDX:
 		val = TEVS_SFX_MODE_SFX_GRAYSCALE;
 		break;
-	case 3:
+	case TEVS_SFX_MODE_SFX_NEGATIVE_IDX:
 		val = TEVS_SFX_MODE_SFX_NEGATIVE;
 		break;
-	case 4:
+	case TEVS_SFX_MODE_SFX_SKETCH_IDX:
 		val = TEVS_SFX_MODE_SFX_SKETCH;
 		break;
 	default:
@@ -1788,22 +1683,22 @@ static int tevs_get_special_effect(struct tevs *tevs, s32 *mode)
 
 	switch (val & TEVS_SFX_MODE_SFX_MASK) {
 	case TEVS_SFX_MODE_SFX_NORMAL:
-		*mode = 0;
+		*mode = TEVS_SFX_MODE_SFX_NORMAL_IDX;
 		break;
 	case TEVS_SFX_MODE_SFX_BW:
-		*mode = 1;
+		*mode = TEVS_SFX_MODE_SFX_BW_IDX;
 		break;
 	case TEVS_SFX_MODE_SFX_GRAYSCALE:
-		*mode = 2;
+		*mode = TEVS_SFX_MODE_SFX_GRAYSCALE_IDX;
 		break;
 	case TEVS_SFX_MODE_SFX_NEGATIVE:
-		*mode = 3;
+		*mode = TEVS_SFX_MODE_SFX_NEGATIVE_IDX;
 		break;
 	case TEVS_SFX_MODE_SFX_SKETCH:
-		*mode = 4;
+		*mode = TEVS_SFX_MODE_SFX_SKETCH_IDX;
 		break;
 	default:
-		*mode = 0;
+		*mode = TEVS_SFX_MODE_SFX_NORMAL_IDX;
 		break;
 	}
 
@@ -1813,6 +1708,7 @@ static int tevs_get_special_effect(struct tevs *tevs, s32 *mode)
 static const char *const ae_mode_strings[] = {
 	"Manual Mode", // TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN
 	"Auto Mode", // TEVS_AE_CTRL_FULL_AUTO
+	"AGC Mode", // TEVS_AE_CTRL_AUTO_GAIN
 	NULL,
 };
 
@@ -1824,11 +1720,11 @@ static int tevs_set_bsl_mode(struct tevs *tevs, s32 mode)
 	dev_dbg(tevs->dev, "%s(): set bls mode: %d", __func__, mode);
 
 	switch (mode) {
-	case 0:
+	case TEVS_BSL_MODE_NORMAL_IDX:
 		tevs_i2c_write(tevs, 0x8001, startup, 6);
 		tevs_i2c_read(tevs, 0x8001, &val, 1);
 		break;
-	case 1:
+	case TEVS_BSL_MODE_FLASH_IDX:
 		gpiod_set_value_cansleep(tevs->reset_gpio, 0);
 		usleep_range(9000, 10000);
 		gpiod_set_value_cansleep(tevs->standby_gpio, 1);
@@ -1848,24 +1744,56 @@ static int tevs_set_bsl_mode(struct tevs *tevs, s32 mode)
 	return 0;
 }
 
+static int tevs_set_max_fps(struct tevs *tevs, s32 value)
+{
+	u8 exp[4] = { 0 };
+	int ret = 0;
+	ret += tevs_i2c_write_16b(tevs, TEVS_MAX_FPS,
+				  value & TEVS_MAX_FPS_MASK);
+	ret += tevs_i2c_read(tevs, TEVS_AE_MANUAL_EXP_TIME, exp, 4);
+	tevs->exp_time_ctrl->cur.val = be32_to_cpup((__be32 *)exp) &
+				       TEVS_AE_MANUAL_EXP_TIME_MASK;
+	return ret;
+}
+
+static int tevs_get_max_fps(struct tevs *tevs, s32 *value)
+{
+	u16 val;
+	int ret;
+	ret = tevs_i2c_read_16b(tevs, TEVS_MAX_FPS, &val);
+	if (ret)
+		return ret;
+
+	*value = val & TEVS_MAX_FPS_MASK;
+	return 0;
+}
+
 static int tevs_set_ae_mode(struct tevs *tevs, s32 mode)
 {
 	u16 val = mode & TEVS_SFX_MODE_SFX_MASK;
+	u8 exp[4] = { 0 };
+	int ret = 0;
 
 	switch (val) {
-	case 0:
+	case TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN_IDX:
 		val = TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN;
 		break;
-	case 1:
+	case TEVS_AE_CTRL_FULL_AUTO_IDX:
 		val = TEVS_AE_CTRL_FULL_AUTO;
+		break;
+	case TEVS_AE_CTRL_AUTO_GAIN_IDX:
+		val = TEVS_AE_CTRL_AUTO_GAIN;
 		break;
 	default:
 		val = TEVS_AE_CTRL_FULL_AUTO;
 		break;
 	}
 
-	return tevs_i2c_write_16b(tevs, TEVS_AE_CTRL_MODE,
-				    val);
+	ret += tevs_i2c_write_16b(tevs, TEVS_AE_CTRL_MODE, val);
+	ret += tevs_i2c_read(tevs, TEVS_AE_MANUAL_EXP_TIME, exp, 4);
+	tevs->exp_time_ctrl->cur.val = be32_to_cpup((__be32 *)exp) &
+				       TEVS_AE_MANUAL_EXP_TIME_MASK;
+	return ret;
 }
 
 static int tevs_get_ae_mode(struct tevs *tevs, s32 *mode)
@@ -1880,13 +1808,16 @@ static int tevs_get_ae_mode(struct tevs *tevs, s32 *mode)
 
 	switch (val & TEVS_AE_CTRL_MODE_MASK) {
 	case TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN:
-		*mode = 0;
+		*mode = TEVS_AE_CTRL_MANUAL_EXP_TIME_GAIN_IDX;
 		break;
 	case TEVS_AE_CTRL_FULL_AUTO:
-		*mode = 1;
+		*mode = TEVS_AE_CTRL_FULL_AUTO_IDX;
+		break;
+	case TEVS_AE_CTRL_AUTO_GAIN:
+		tevs_set_exposure(tevs,  tevs->exp_time_ctrl->cur.val);
 		break;
 	default:
-		*mode = 1;
+		*mode = TEVS_AE_CTRL_FULL_AUTO_IDX;
 		break;
 	}
 	return 0;
@@ -1927,6 +1858,26 @@ static int tevs_get_tilt_target(struct tevs *tevs, s32 *value)
 		return ret;
 
 	*value = val & TEVS_DZ_CT_Y_MASK;
+	return 0;
+}
+
+static int tevs_set_zoom_target(struct tevs *tevs, s32 value)
+{
+	// Format u7.8
+	return tevs_i2c_write_16b(tevs, TEVS_DZ_TGT_FCT,
+				    value & TEVS_DZ_TGT_FCT_MASK);
+}
+
+static int tevs_get_zoom_target(struct tevs *tevs, s32 *value)
+{
+	u16 val;
+	int ret;
+	ret = tevs_i2c_read_16b(tevs, TEVS_DZ_TGT_FCT,
+				  &val);
+	if (ret)
+		return ret;
+
+	*value = val & TEVS_DZ_TGT_FCT_MASK;
 	return 0;
 }
 
@@ -1985,12 +1936,6 @@ static int tevs_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	case V4L2_CID_TEVS_MAX_FPS:
 		return tevs_set_max_fps(tevs, ctrl->val);
-
-	case V4L2_CID_TEVS_AE_EXP_TIME_UPPER:
-		return tevs_set_ae_auto_exp_upper(tevs, ctrl->val);
-
-	case V4L2_CID_TEVS_AE_EXP_TIME_MAX:
-		return tevs_set_ae_auto_exp_max(tevs, ctrl->val);
 
 	case V4L2_CID_EXPOSURE:
 		return tevs_set_exposure(tevs, ctrl->val);
@@ -2067,12 +2012,6 @@ static int tevs_g_ctrl(struct v4l2_ctrl *ctrl)
 
 	case V4L2_CID_TEVS_MAX_FPS:
 		return tevs_get_max_fps(tevs, &ctrl->val);
-
-	case V4L2_CID_TEVS_AE_EXP_TIME_UPPER:
-		return tevs_get_ae_auto_exp_upper(tevs, &ctrl->val);
-
-	case V4L2_CID_TEVS_AE_EXP_TIME_MAX:
-		return tevs_get_ae_auto_exp_max(tevs, &ctrl->val);
 
 	case V4L2_CID_EXPOSURE:
 		return tevs_get_exposure(tevs, &ctrl->val);
@@ -2227,8 +2166,8 @@ static const struct v4l2_ctrl_config tevs_ctrls[] = {
 		.id = V4L2_CID_POWER_LINE_FREQUENCY,
 		.name = "Power_Line_Frequency",
 		.type = V4L2_CTRL_TYPE_MENU,
-		.max = TEVS_FLICK_MODE_ENABLED_IDX,
-		.def = TEVS_FLICK_MODE_DISABLED_IDX,
+		.max = TEVS_FLICK_CTRL_MODE_AUTO_IDX,
+		.def = TEVS_FLICK_CTRL_MODE_DISABLED_IDX,
 		.qmenu = flick_mode_strings,
 	},
 	{
@@ -2275,7 +2214,7 @@ static const struct v4l2_ctrl_config tevs_ctrls[] = {
 		.id = V4L2_CID_EXPOSURE_AUTO,
 		.name = "Exposure_Mode",
 		.type = V4L2_CTRL_TYPE_MENU,
-		.max = TEVS_AE_CTRL_FULL_AUTO_IDX,
+		.max = TEVS_AE_CTRL_AUTO_GAIN_IDX,
 		.def = TEVS_AE_CTRL_FULL_AUTO_IDX,
 		.qmenu = ae_mode_strings,
 	},
@@ -2330,30 +2269,10 @@ static const struct v4l2_ctrl_config tevs_ctrls[] = {
 	},
 	{
 		.ops = &tevs_ctrl_ops,
-		.id = V4L2_CID_TEVS_AE_EXP_TIME_UPPER,
-		.name = "AE_ExpTime_Upper",
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0x0,
-		.max = 0xF4240,
-		.step = 1,
-		.def = 0x8235, // 33333 us
-	},
-	{
-		.ops = &tevs_ctrl_ops,
-		.id = V4L2_CID_TEVS_AE_EXP_TIME_MAX,
-		.name = "AE_ExpTime_Max",
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0x0,
-		.max = 0xF4240,
-		.step = 1,
-		.def = 0x8235, // 33333 us
-	},
-	{
-		.ops = &tevs_ctrl_ops,
 		.id = V4L2_CID_PIXEL_RATE,
 		.name = "Pixel rate",
 		.type = V4L2_CTRL_TYPE_INTEGER64,
-		.min = TEVS_PIXEL_RATE,
+		.min = 1000000,
 		.max = TEVS_PIXEL_RATE,
 		.step = 0x1,
 		.def = TEVS_PIXEL_RATE,
@@ -2405,10 +2324,9 @@ static int tevs_ctrls_init(struct tevs *tevs)
 			break;
 
 		case V4L2_CID_EXPOSURE:
-		case V4L2_CID_TEVS_AE_EXP_TIME_UPPER:
-		case V4L2_CID_TEVS_AE_EXP_TIME_MAX:
 			tevs_get_exposure_max(tevs, &ctrl->maximum);
 			tevs_get_exposure_min(tevs, &ctrl->minimum);
+			tevs->exp_time_ctrl = ctrl;
 			break;
 
 		case V4L2_CID_GAIN:
@@ -2583,14 +2501,12 @@ static int tevs_probe(struct i2c_client *client)
 
 	tevs->trigger_mode = 
 		of_property_read_bool(dev->of_node, "trigger-mode");
-	tevs->fixed_fps = 
-		of_property_read_bool(dev->of_node, "fixed-fps");
 
 	dev_dbg(dev,
-		"data-lanes [%d] ,continuous-clock [%d], supports-over-4k-res [%d]," 
-		" hw-reset [%d], trigger-mode [%d], data-frequency [%d], fixed-fps [%d]\n",
-		tevs->data_lanes, tevs->continuous_clock, tevs->supports_over_4k_res, 
-		tevs->hw_reset_mode, tevs->trigger_mode, tevs->data_frequency, tevs->fixed_fps);
+		"data-lanes [%d], continuous-clock [%d], supports-over-4k-res [%d]," 
+		" hw-reset [%d], trigger-mode [%d], data-frequency [%d]\n",
+		tevs->data_lanes, tevs->continuous_clock, tevs->supports_over_4k_res,
+		tevs->hw_reset_mode, tevs->trigger_mode, tevs->data_frequency);
 
 	if (tevs_try_on(tevs) != 0) {
 		dev_err(dev, "cannot find tevs camera\n");
