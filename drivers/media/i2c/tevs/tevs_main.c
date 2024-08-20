@@ -2284,6 +2284,10 @@ static int tevs_ctrls_init(struct tevs *tevs)
 	if (ret)
 		return ret;
 
+	/* Use same lock for controls as for everything else. */
+	mutex_init(&tevs->lock);
+	tevs->ctrls.lock = &tevs->lock;
+
 	for (i = 0; i < ARRAY_SIZE(tevs_ctrls); i++) {
 		struct v4l2_ctrl *ctrl = v4l2_ctrl_new_custom(
 			&tevs->ctrls, &tevs_ctrls[i], NULL);
@@ -2373,11 +2377,15 @@ static int tevs_ctrls_init(struct tevs *tevs)
 		return ret;
 	}
 
-	/* Use same lock for controls as for everything else. */
-	tevs->ctrls.lock = &tevs->lock;
 	tevs->v4l2_subdev.ctrl_handler = &tevs->ctrls;
 
 	return 0;
+}
+
+static void tevs_ctrls_free(struct tevs *tevs)
+{
+	v4l2_ctrl_handler_free(&tevs->ctrls);
+	mutex_destroy(&tevs->lock);
 }
 
 static const struct v4l2_subdev_core_ops tevs_v4l2_subdev_core_ops = {
@@ -2427,7 +2435,7 @@ static int tevs_probe(struct i2c_client *client)
 	tevs = devm_kzalloc(dev, sizeof(*tevs), GFP_KERNEL);
 	if (tevs == NULL) {
 		dev_err(dev, "allocate memory failed\n");
-		return -EINVAL;
+		return -ENOMEM;
 	}
 
 	tevs->fmt = tevs_csi2_default_fmt;
@@ -2524,21 +2532,24 @@ static int tevs_probe(struct i2c_client *client)
 
 	ret = tevs_check_version(tevs);
 	if (ret < 0) {
-		dev_err(dev, "dev init failed\n");
-		return -EINVAL;
+		dev_err(dev, "check device version failed\n");
+		ret = -EINVAL;
+		goto error_power_off;
 	}
 
 	tevs->header_info = devm_kzalloc(
 			dev, sizeof(struct header_info), GFP_KERNEL);
 	if (tevs->header_info == NULL) {
 		dev_err(dev, "allocate header_info failed\n");
-		return -EINVAL;
+		ret = -ENOMEM;
+		goto error_power_off;
 	}
 
 	ret = tevs_load_header_info(tevs);
 	if (ret < 0) {
-		dev_err(dev, "otp flash init failed\n");
-		return -EINVAL;
+		dev_err(dev, "load header information failed\n");
+		ret = -EINVAL;
+		goto error_power_off;
 	} else {
 		for (i = 0; i < ARRAY_SIZE(tevs_sensor_table); i++) {
 			if (strcmp((const char *)tevs->header_info
@@ -2552,7 +2563,8 @@ static int tevs_probe(struct i2c_client *client)
 		dev_err(dev, "cannot not support the product: %s\n",
 			(const char *)
 				tevs->header_info->product_name);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto error_power_off;
 	}
 
 	tevs->selected_sensor = i;
@@ -2570,7 +2582,7 @@ static int tevs_probe(struct i2c_client *client)
 	ret = tevs_ctrls_init(tevs);
 	if (ret) {
 		dev_err(dev, "failed to init controls: %d", ret);
-		goto error_probe;
+		goto error_power_off;
 	}
 	
 	tevs->pad.flags = MEDIA_PAD_FL_SOURCE;
@@ -2578,7 +2590,7 @@ static int tevs_probe(struct i2c_client *client)
 	ret = media_entity_pads_init(&sd->entity, 1, &tevs->pad);
 	if (ret < 0) {
 		dev_err(dev,"%s: media entity init failed %d\n", __func__, ret);
-		return -EINVAL;
+		goto error_handler_free;
 	}
 
 	dev_dbg(dev, "v4l2_subdev_init_finalize\n");
@@ -2590,23 +2602,23 @@ static int tevs_probe(struct i2c_client *client)
 	/* Finally, register the subdev. */
 	ret = v4l2_async_register_subdev_sensor(sd);
 	if (ret != 0) {
-		dev_err(dev, "v4l2 register failed\n");
-		return -EINVAL;
+		dev_err(tevs->dev, "v4l2 register failed\n");
+		goto error_media_entity;
 	}
 
 	if (tevs->trigger_mode) {
 		ret = tevs_enable_trigger_mode(tevs, 1);
 		if (ret != 0) {
-			dev_err(dev, "init setting failed\n");
-			return ret;
+			dev_err(tevs->dev, "set trigger mode failed\n");
+			goto error_media_entity;
 		}
 	}
 
-	if(tevs->hw_reset_mode) {
-		ret = tevs_enable_trigger_mode(tevs, 1);
+	if (!(tevs->hw_reset_mode | tevs->trigger_mode)) {
+		ret = tevs_standby(tevs, 1);
 		if (ret != 0) {
-			dev_err(tevs->dev, "set trigger mode failed\n");
-			return ret;
+			dev_err(tevs->dev, "set standby mode failed\n");
+			goto error_media_entity;
 		}
 	}
 	else 
@@ -2616,15 +2628,28 @@ static int tevs_probe(struct i2c_client *client)
 	else
 		dev_err(dev, "probe failed\n");
 
-error_probe:
-	mutex_destroy(&tevs->lock);
+	return 0;
+
+error_media_entity:
+	media_entity_cleanup(&tevs->v4l2_subdev.entity);
+
+error_handler_free:
+	tevs_ctrls_free(tevs);
+
+error_power_off:
+	tevs_power_off(tevs);
 
 	return ret;
 }
 
 static void tevs_remove(struct i2c_client *client)
 {
-	dev_info(&client->dev, "sensor remove.\n");
+	struct v4l2_subdev *sub_dev = i2c_get_clientdata(client);
+	struct tevs *tevs = container_of(sub_dev, struct tevs, v4l2_subdev);
+
+	v4l2_async_unregister_subdev(sub_dev);
+	media_entity_cleanup(&sub_dev->entity);
+	tevs_ctrls_free(tevs);
 }
 
 static const struct i2c_device_id sensor_id[] = { { DRIVER_NAME, 0 }, {} };
