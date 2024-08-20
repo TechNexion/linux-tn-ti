@@ -706,6 +706,14 @@ static int tevs_set_stream(struct v4l2_subdev *sub_dev, int enable)
 				tevs,
 				HOST_COMMAND_ISP_CTRL_PREVIEW_MAX_FPS, fps);
 
+			tevs_i2c_write_16b(
+                tevs, HOST_COMMAND_ISP_CTRL_EXP_TIME_MSB,
+                tevs->exp_time_ctrl->cur.val >> 16);
+
+            tevs_i2c_write_16b(
+                tevs, HOST_COMMAND_ISP_CTRL_EXP_TIME_LSB,
+                tevs->exp_time_ctrl->cur.val & 0xFFFF);
+
 			if(tevs->max_fps_ctrl)
 				tevs->max_fps_ctrl->cur.val = fps;
 		}
@@ -1723,6 +1731,13 @@ static int tevs_set_bsl_mode(struct tevs *tevs, s32 mode)
 	case TEVS_BSL_MODE_NORMAL_IDX:
 		tevs_i2c_write(tevs, 0x8001, startup, 6);
 		tevs_i2c_read(tevs, 0x8001, &val, 1);
+
+		msleep(TEVS_BOOT_TIME);
+
+		if (tevs_check_boot_state(tevs) != 0) {
+			dev_err(tevs->dev, "check tevs bootup status failed\n");
+			return -EINVAL;
+		}
 		break;
 	case TEVS_BSL_MODE_FLASH_IDX:
 		gpiod_set_value_cansleep(tevs->reset_gpio, 0);
@@ -2605,10 +2620,10 @@ static int tevs_probe(struct i2c_client *client)
 		}
 	}
 
-	if(!(tevs->hw_reset_mode | tevs->trigger_mode)) {
-		ret = tevs_standby(tevs, 1);
+	if(tevs->hw_reset_mode) {
+		ret = tevs_enable_trigger_mode(tevs, 1);
 		if (ret != 0) {
-			dev_err(dev, "set standby mode failed\n");
+			dev_err(tevs->dev, "set trigger mode failed\n");
 			return ret;
 		}
 	}
