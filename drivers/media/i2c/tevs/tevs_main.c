@@ -665,6 +665,13 @@ static int tevs_set_stream(struct v4l2_subdev *sub_dev, int enable)
 				tevs_sensor_table[tevs->selected_sensor]
 					.res_list[tevs->selected_mode]
 					.framerates);
+			tevs_i2c_write_16b(tevs,
+					   HOST_COMMAND_ISP_CTRL_PREVIEW_FORMAT,
+					   0x50);
+			tevs_i2c_write_16b(
+				tevs, HOST_COMMAND_ISP_CTRL_PREVIEW_HINF_CTRL,
+				0x10 | (tevs->continuous_clock << 5) |
+					(tevs->data_lanes));
 			tevs_i2c_write_16b(
 				tevs,
 				HOST_COMMAND_ISP_CTRL_PREVIEW_SENSOR_MODE,
