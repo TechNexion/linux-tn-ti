@@ -486,27 +486,6 @@ int tevs_load_header_info(struct tevs *tevs)
 	}
 }
 
-int tevs_init_setting(struct tevs *tevs)
-{
-	int ret = 0;
-
-	dev_dbg(tevs->dev, "%s()\n", __func__);
-
-	ret = tevs_enable_trigger_mode(tevs, tevs->trigger_mode);
-	if (ret != 0) {
-		dev_err(tevs->dev, "set trigger mode failed\n");
-		return ret;
-	}
-
-	ret += tevs_i2c_write_16b(tevs,
-				HOST_COMMAND_ISP_CTRL_PREVIEW_FORMAT,
-				0x50);
-	ret += tevs_i2c_write_16b(tevs,
-				HOST_COMMAND_ISP_CTRL_PREVIEW_HINF_CTRL,
-				0x10 | (tevs->continuous_clock << 5) | (tevs->data_lanes));
-	return ret;
-}
-
 static int tevs_standby(struct tevs *tevs, int enable)
 {
 	u16 v = 0;
@@ -586,10 +565,12 @@ static int tevs_power_on(struct tevs *tevs)
 	if(ret != 0)
 		return ret;
 
-	if((tevs->hw_reset_mode | tevs->trigger_mode)) {
-		ret = tevs_init_setting(tevs);
-		if (ret != 0) 
-			dev_err(tevs->dev, "init setting failed\n");
+	if(tevs->hw_reset_mode) {
+		ret = tevs_enable_trigger_mode(tevs, 1);
+		if (ret != 0) {
+			dev_err(tevs->dev, "set trigger mode failed\n");
+			return ret;
+		}
 	}
 
 	return ret;
@@ -2613,7 +2594,8 @@ static int tevs_probe(struct i2c_client *client)
 		return -EINVAL;
 	}
 
-	if(tevs_init_setting(tevs)){
+	if (tevs->trigger_mode) {
+		ret = tevs_enable_trigger_mode(tevs, 1);
 		if (ret != 0) {
 			dev_err(dev, "init setting failed\n");
 			return ret;
