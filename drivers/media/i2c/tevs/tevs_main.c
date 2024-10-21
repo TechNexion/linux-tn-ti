@@ -169,8 +169,6 @@ enum tevs_pads{
 #define HOST_COMMAND_ISP_CTRL_I2C_ADDR                          (0xF000)
 #define HOST_COMMAND_ISP_CTRL_I2C_DATA                          (0xF002)
 
-#define TEVS_TRIGGER_CTRL                   	HOST_COMMAND_ISP_CTRL_TRIGGER_MODE
-
 #define TEVS_BRIGHTNESS 						HOST_COMMAND_ISP_CTRL_BRIGHTNESS
 #define TEVS_BRIGHTNESS_MAX 					HOST_COMMAND_ISP_CTRL_BRIGHTNESS_MAX
 #define TEVS_BRIGHTNESS_MIN 					HOST_COMMAND_ISP_CTRL_BRIGHTNESS_MIN
@@ -193,8 +191,6 @@ enum tevs_pads{
 #define TEVS_GAMMA_MAX 							HOST_COMMAND_ISP_CTRL_GAMMA_MAX
 #define TEVS_GAMMA_MIN 							HOST_COMMAND_ISP_CTRL_GAMMA_MIN
 #define TEVS_GAMMA_MASK 						(0xFFFF)
-#define TEVS_MAX_FPS							HOST_COMMAND_ISP_CTRL_PREVIEW_MAX_FPS
-#define TEVS_MAX_FPS_MASK 						(0x00FF)
 #define TEVS_AE_AUTO_EXP_TIME_UPPER				HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_UPPER_MSB
 #define TEVS_AE_AUTO_EXP_TIME_MAX				HOST_COMMAND_ISP_CTRL_PREVIEW_EXP_TIME_MAX_MSB
 #define TEVS_AE_AUTO_EXP_TIME_MASK				(0xFFFFFFFF)
@@ -244,6 +240,16 @@ enum tevs_pads{
 #define TEVS_DZ_TGT_FCT_MAX 					HOST_COMMAND_ISP_CTRL_ZOOM_TIMES_MAX
 #define TEVS_DZ_TGT_FCT_MIN 					HOST_COMMAND_ISP_CTRL_ZOOM_TIMES_MIN
 #define TEVS_DZ_TGT_FCT_MASK 					(0xFFFF)
+#define TEVS_BSL_MODE_NORMAL_IDX 		    	(0U << 0)
+#define TEVS_BSL_MODE_FLASH_IDX 				(1U << 0)
+#define TEVS_MAX_FPS							HOST_COMMAND_ISP_CTRL_PREVIEW_MAX_FPS
+#define TEVS_MAX_FPS_MASK 						(0x00FF)
+#define TEVS_DENOISE							HOST_COMMAND_ISP_CTRL_DENOISE
+#define TEVS_DENOISE_MAX 						HOST_COMMAND_ISP_CTRL_DENOISE_MAX
+#define TEVS_DENOISE_MIN 						HOST_COMMAND_ISP_CTRL_DENOISE_MIN
+#define TEVS_DENOISE_MASK 						(0xFFFF)
+#define TEVS_TRIGGER_CTRL                   	HOST_COMMAND_ISP_CTRL_TRIGGER_MODE
+#define TEVS_TRIGGER_CTRL_MODE_MASK 			(0x0001)
 #define TEVS_SFX_MODE 							HOST_COMMAND_ISP_CTRL_EFFECT
 #define TEVS_SFX_MODE_SFX_MASK 					(0x00FF)
 #define TEVS_SFX_MODE_SFX_NORMAL 				(0U << 0)
@@ -274,9 +280,7 @@ enum tevs_pads{
 #define V4L2_CID_USER_TEVS_BASE				(V4L2_CID_USER_BASE + 0x2000)
 #define V4L2_CID_TEVS_BSL_MODE				(V4L2_CID_USER_TEVS_BASE + 0)
 #define V4L2_CID_TEVS_MAX_FPS				(V4L2_CID_USER_TEVS_BASE + 1)
-#define TEVS_TRIGGER_CTRL_MODE_MASK 		(0x0001)
-#define TEVS_BSL_MODE_NORMAL_IDX 		    (0U << 0)
-#define TEVS_BSL_MODE_FLASH_IDX 			(1U << 0)
+#define V4L2_CID_TEVS_DENOISE				(V4L2_CID_USER_TEVS_BASE + 2)
 
 #define DEFAULT_HEADER_VERSION 3
 #define TEVS_BOOT_TIME						(250)
@@ -330,6 +334,7 @@ struct tevs {
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *max_fps_ctrl;
 	struct v4l2_ctrl *exp_time_ctrl;
+	struct v4l2_ctrl *denoise_ctrl;
 };
 
 static const struct regmap_config tevs_regmap_config = {
@@ -1759,6 +1764,56 @@ static int tevs_set_max_fps(struct tevs *tevs, s32 value)
 	return ret;
 }
 
+static int tevs_get_denoise_max(struct tevs *tevs, s64 *value)
+{
+	u16 val;
+	int ret;
+
+	ret = tevs_i2c_read_16b(tevs, TEVS_DENOISE_MAX,
+				  &val);
+
+	if (ret)
+		return ret;
+
+	*value = val & TEVS_DENOISE_MASK;
+	return 0;
+}
+
+static int tevs_get_denoise_min(struct tevs *tevs, s64 *value)
+{
+	u16 val;
+	int ret;
+
+	ret = tevs_i2c_read_16b(tevs, TEVS_DENOISE_MIN,
+				  &val);
+
+	if (ret)
+		return ret;
+
+	*value = val & TEVS_DENOISE_MASK;
+	return 0;
+}
+
+static int tevs_set_denoise(struct tevs *tevs, s32 value)
+{
+	// Format is u3.12
+	return tevs_i2c_write_16b(tevs, TEVS_DENOISE, value & TEVS_DENOISE_MASK);
+}
+
+static int tevs_get_denoise(struct tevs *tevs, s32 *value)
+{
+	u16 val;
+	int ret;
+
+	ret = tevs_i2c_read_16b(tevs, TEVS_DENOISE, &val);
+
+	if (ret)
+		return ret;
+
+	*value = val & TEVS_DENOISE_MASK;
+	return 0;
+}
+
 static int tevs_get_max_fps(struct tevs *tevs, s32 *value)
 {
 	u16 val;
@@ -1940,6 +1995,9 @@ static int tevs_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_TEVS_MAX_FPS:
 		return tevs_set_max_fps(tevs, ctrl->val);
 
+	case V4L2_CID_TEVS_DENOISE:
+		return tevs_set_denoise(tevs, ctrl->val);
+
 	case V4L2_CID_EXPOSURE:
 		return tevs_set_exposure(tevs, ctrl->val);
 
@@ -2015,6 +2073,9 @@ static int tevs_g_ctrl(struct v4l2_ctrl *ctrl)
 
 	case V4L2_CID_TEVS_MAX_FPS:
 		return tevs_get_max_fps(tevs, &ctrl->val);
+
+	case V4L2_CID_TEVS_DENOISE:
+		return tevs_get_denoise(tevs, &ctrl->val);
 
 	case V4L2_CID_EXPOSURE:
 		return tevs_get_exposure(tevs, &ctrl->val);
@@ -2272,6 +2333,16 @@ static const struct v4l2_ctrl_config tevs_ctrls[] = {
 	},
 	{
 		.ops = &tevs_ctrl_ops,
+		.id = V4L2_CID_TEVS_DENOISE,
+		.name = "Denoise",
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.min = 0x0000,
+		.max = 0x4000,
+		.step = 1,
+		.def = 0x2000,
+	},
+	{
+		.ops = &tevs_ctrl_ops,
 		.id = V4L2_CID_PIXEL_RATE,
 		.name = "Pixel rate",
 		.type = V4L2_CTRL_TYPE_INTEGER64,
@@ -2371,7 +2442,11 @@ static int tevs_ctrls_init(struct tevs *tevs)
 
 		case V4L2_CID_TEVS_MAX_FPS:
 			tevs->max_fps_ctrl = ctrl;
+			break;
 
+		case V4L2_CID_TEVS_DENOISE:
+			tevs_get_denoise_max(tevs, &ctrl->maximum);
+			tevs_get_denoise_min(tevs, &ctrl->minimum);
 		default:
 			break;
 		}
